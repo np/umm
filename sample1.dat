@@ -1,0 +1,41 @@
+ccs € "The Almighty Euro"
+ccs $ "The Almighty Buck"
+ccs ¥ "The Almighty Yen"
+
+income cash
+income interestexpense cash
+
+account acc1 2009-9-1 "test account 1"
+account acc2 2009-9-1 "test account 2"
+
+group all acc1 acc2ccs FOO "The Foo Companies"
+ccs BAR "The Bar Companies"ccs CLAM "Groupe Mollusque"
+
+xfer 2009-9-1 cash acc1 100buy 2009-9-1 acc1 10 FOO 15
+xfer 2009-9-2 interest acc1 0.25buy 2009-9-2 acc1 20 FOO 27
+xfer 2009-9-3 acc1 cash 5.25
+
+xfer 2009-9-1 cash acc2 100buy 2009-9-1 acc2 10 BAR 25
+xfer 2009-9-2 interest acc2 0.25
+buy 2009-9-2 acc2 20 FOO 27
+xfer 2009-9-3 acc2 cash 5.25
+xfer 2009-9-4 acc1 acc2 25
+
+xfer 2009-9-5 cash acc1 200buy 2009-9-5 acc1 30 FOO 40
+buy 2009-9-5 acc1 30 BAR 40
+
+price 2009-9-5 FOO 1.5
+
+xfer 2009-9-6 cash acc1 20 CLAM
+
+price 2009-10-21 FOO 2.1
+price 2009-10-24 FOO 2.4
+price 2009-10-25 FOO 2.5
+price 2009-10-23 FOO 2.3
+price 2009-10-22 FOO 2.2
+
+price 2009-10-25 BAR 3.25
+price 2009-10-27 3 BAR 10
+
+split 2009-11-5 CLAM 2 1
+price 2009-11-11 CLAM 0.001

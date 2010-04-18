@@ -1,0 +1,323 @@
+# Copyright 2009 Uwe Hollerbach <uh@alumni.caltech.edu>
+#
+# This file is part of umm, Uwe's Money Manager.
+#
+# $Id: sample1.dat,v 1.4 2009/11/09 23:07:22 uwe Exp $
+
+# Sample ledger file: a small investment club with 6 people,
+# investing 50 dollars each twice per month
+
+# NAMES AND VALUES OF SECURITIES ARE TOTALLY FAKE AND MADE UP
+
+todo 2009-10-15 Search for "run" in the ledger file, then run each command
+todo 2009-10-15 as indicated, and follow along with the numbers. The club
+todo 2009-10-15 doesn't begin until 2150, so you'll see all [empty] here!
+
+################################################################
+# actual ledger begins here
+
+# The format of the club will be:
+#
+# 1)	at each meeting, we determine the value of a share,
+#	initially 50 US$
+#
+# 2)	from cash, we put money into each member's account,
+#	then transfer that cash into the club account
+#	then transfer the appropriate number of shares back to each member
+#
+# 3)	the club account will therefore contain cash and/or securities
+#	and a negative number of club shares: its net value will always
+#	equal 0, which determines the value of a share;
+#	member accounts will contain increasing numbers of club shares
+#	and temporarily 
+#
+# 4)	periodically, the club invests, turning cash in the club account
+#	into securities
+
+ccs US$ "The Almighty Buck"
+
+income cash
+income interest
+expense cash
+
+# This is the source of contribution cash. This is slightly convoluted,
+# we're doing it this way to easily track the total contributions over
+# time. If desired, we could have an individual contributions account for
+# each member, cont-Al, cont-Barb, etc, but that would be even worse.
+# With macros, this would be a lot easier: a one-line macro could expand
+# to several transactions.
+
+account contributions 2150-1-1 "The source of contributions"
+
+account Al 2150-1-1 "Alfred the Butler"
+account Barb 2150-1-1 "Barbarella, Queen of the Galaxy"
+account Chas 2150-1-1 "Karolus Magnus, Imperator Romanorum et Rex Francorum"
+account Deb 2150-1-1 "Debutante Smashingella"
+account Ed 2150-1-1 "AEthelraed the Unready"
+account Frank 2150-1-1 "Dr Frank N Furter"
+
+account club 2150-1-1 "Le Club d'Investment"
+ccs share "A share of Le Club"
+
+# Exclude contributions from this so that we see just the value of
+# the club as a whole and of each member's shares, not also the
+# contributions.
+
+group all Al Barb Chas Deb Ed Frank club
+
+# meeting 1
+
+xfer 2150-1-1 contributions Al 50
+xfer 2150-1-1 Al club 50
+xfer 2150-1-1 club Al 1 share
+xfer 2150-1-1 contributions Barb 50
+xfer 2150-1-1 Barb club 50
+xfer 2150-1-1 club Barb 1 share
+xfer 2150-1-1 contributions Chas 50
+xfer 2150-1-1 Chas club 50
+xfer 2150-1-1 club Chas 1 share
+xfer 2150-1-1 contributions Deb 50
+xfer 2150-1-1 Deb club 50
+xfer 2150-1-1 club Deb 1 share
+xfer 2150-1-1 contributions Ed 50
+xfer 2150-1-1 Ed club 50
+xfer 2150-1-1 club Ed 1 share
+xfer 2150-1-1 contributions Frank 50
+xfer 2150-1-1 Frank club 50
+xfer 2150-1-1 club Frank 1 share
+
+# run "umm sample1.dat bal 2150-1-14"
+# to find that share price is 300/6 = 50
+
+# meeting 2
+
+xfer 2150-1-15 contributions Al 50
+xfer 2150-1-15 Al club 50
+xfer 2150-1-15 club Al 1 share
+xfer 2150-1-15 contributions Barb 50
+xfer 2150-1-15 Barb club 50
+xfer 2150-1-15 club Barb 1 share
+xfer 2150-1-15 contributions Chas 50
+xfer 2150-1-15 Chas club 50
+xfer 2150-1-15 club Chas 1 share
+xfer 2150-1-15 contributions Deb 50
+xfer 2150-1-15 Deb club 50
+xfer 2150-1-15 club Deb 1 share
+xfer 2150-1-15 contributions Ed 50
+xfer 2150-1-15 Ed club 50
+xfer 2150-1-15 club Ed 1 share
+xfer 2150-1-15 contributions Frank 50
+xfer 2150-1-15 Frank club 50
+xfer 2150-1-15 club Frank 1 share
+
+xfer 2150-1-30 interest club 3
+
+# run "umm sample1.dat bal 2150-1-30"
+# to find that share price is 603/12 = 50.25,
+# so each member buys $50/$50.25 = 0.995025... shares
+
+# meeting 3
+
+xfer 2150-2-1 contributions Al 50
+xfer 2150-2-1 Al club 50
+xfer 2150-2-1 club Al 0.995025 share
+xfer 2150-2-1 contributions Barb 50
+xfer 2150-2-1 Barb club 50
+xfer 2150-2-1 club Barb 0.995025 share
+xfer 2150-2-1 contributions Chas 50
+xfer 2150-2-1 Chas club 50
+xfer 2150-2-1 club Chas 0.995025 share
+xfer 2150-2-1 contributions Deb 50
+xfer 2150-2-1 Deb club 50
+xfer 2150-2-1 club Deb 0.995025 share
+xfer 2150-2-1 contributions Ed 50
+xfer 2150-2-1 Ed club 50
+xfer 2150-2-1 club Ed 0.995025 share
+xfer 2150-2-1 contributions Frank 50
+xfer 2150-2-1 Frank club 50
+xfer 2150-2-1 club Frank 0.995025 share
+
+# run "umm sample1.dat bal 2150-2-14"
+# to find that share price is 903/17.97015
+# so each member still buys 0.995025... shares
+# but AEthelraed doesn't contribute,
+# and Frank can only afford $40 this time
+
+# meeting 4
+
+xfer 2150-2-15 contributions Al 50
+xfer 2150-2-15 Al club 50
+xfer 2150-2-15 club Al 0.995025 share
+xfer 2150-2-15 contributions Barb 50
+xfer 2150-2-15 Barb club 50
+xfer 2150-2-15 club Barb 0.995025 share
+xfer 2150-2-15 contributions Chas 50
+xfer 2150-2-15 Chas club 50
+xfer 2150-2-15 club Chas 0.995025 share
+xfer 2150-2-15 contributions Deb 50
+xfer 2150-2-15 Deb club 50
+xfer 2150-2-15 club Deb 0.995025 share
+todo 2150-2-15 AEthelraed misses, Frank partial!
+xfer 2150-2-15 contributions Frank 40
+xfer 2150-2-15 Frank club 40
+xfer 2150-2-15 club Frank 0.79602 share
+
+xfer 2150-2-28 interest club 6
+
+# run "umm sample1.dat bal 2150-2-28"
+# to find that share price is 1149/22.74627 = 50.513777
+# so each member buys $50/$50.513777 = 0.989829... shares
+
+# meeting 5
+
+xfer 2150-3-1 contributions Al 50
+xfer 2150-3-1 Al club 50
+xfer 2150-3-1 club Al 0.989829 share
+xfer 2150-3-1 contributions Barb 50
+xfer 2150-3-1 Barb club 50
+xfer 2150-3-1 club Barb 0.989829 share
+xfer 2150-3-1 contributions Chas 50
+xfer 2150-3-1 Chas club 50
+xfer 2150-3-1 club Chas 0.989829 share
+xfer 2150-3-1 contributions Deb 50
+xfer 2150-3-1 Deb club 50
+xfer 2150-3-1 club Deb 0.989829 share
+xfer 2150-3-1 contributions Ed 50
+xfer 2150-3-1 Ed club 50
+xfer 2150-3-1 club Ed 0.989829 share
+xfer 2150-3-1 contributions Frank 50
+xfer 2150-3-1 Frank club 50
+xfer 2150-3-1 club Frank 0.989829 share
+
+# members determine to buy shares in Insatiable Enterprises,
+# which is currently trading about $44 per share;
+# transaction gets executed a couple of days later
+
+ccs IE "Insatiable Enterprises"
+
+xfer 2150-3-4 club cash 9 "commission to broker"
+buy 2150-3-4 club 32 IE 1415.36 "bought shares at 44.23"
+
+# IE has gone down slightly by next meeting
+price 2150-3-14 IE 43.95
+
+# run "umm sample1.dat bal 2150-3-14"
+# to find that club owns 32 shares of IE worth $1406.40, plus $24.64
+# against 28.685244 shares outstanding: each share is worth $49.887670
+# so each member buys 1.002252 shares
+
+# meeting 6
+
+xfer 2150-3-15 contributions Al 50
+xfer 2150-3-15 Al club 50
+xfer 2150-3-15 club Al 1.002252 share
+xfer 2150-3-15 contributions Barb 50
+xfer 2150-3-15 Barb club 50
+xfer 2150-3-15 club Barb 1.002252 share
+xfer 2150-3-15 contributions Chas 50
+xfer 2150-3-15 Chas club 50
+xfer 2150-3-15 club Chas 1.002252 share
+xfer 2150-3-15 contributions Deb 50
+xfer 2150-3-15 Deb club 50
+xfer 2150-3-15 club Deb 1.002252 share
+xfer 2150-3-15 contributions Ed 50
+xfer 2150-3-15 Ed club 50
+xfer 2150-3-15 club Ed 1.002252 share
+xfer 2150-3-15 contributions Frank 50
+xfer 2150-3-15 Frank club 50
+xfer 2150-3-15 club Frank 1.002252 share
+
+# uh-oh, IE might not have been a good buy!
+price 2150-3-30 IE 38.11
+xfer 2150-3-30 interest club 1.62
+
+# run "umm sample1.dat bal 2150-3-30"
+# to find that club owns 32 shares of IE worth $1219.52, plus $326.26
+# against 34.698756 shares outstanding: each share is worth $44.548571
+# so each member buys 1.122370 shares
+
+# meeting 7
+
+xfer 2150-4-1 contributions Al 50
+xfer 2150-4-1 Al club 50
+xfer 2150-4-1 club Al 1.122370 share
+xfer 2150-4-1 contributions Barb 50
+xfer 2150-4-1 Barb club 50
+xfer 2150-4-1 club Barb 1.122370 share
+xfer 2150-4-1 contributions Chas 50
+xfer 2150-4-1 Chas club 50
+xfer 2150-4-1 club Chas 1.122370 share
+xfer 2150-4-1 contributions Deb 50
+xfer 2150-4-1 Deb club 50
+xfer 2150-4-1 club Deb 1.122370 share
+xfer 2150-4-1 contributions Ed 50
+xfer 2150-4-1 Ed club 50
+xfer 2150-4-1 club Ed 1.122370 share
+xfer 2150-4-1 contributions Frank 50
+xfer 2150-4-1 Frank club 50
+xfer 2150-4-1 club Frank 1.122370 share
+
+# members still believe in IE, so decide to buy more
+
+xfer 2150-4-4 club cash 9 "commission to broker"
+buy 2150-4-4 club 16 IE 607.20 "bought shares at 37.95"
+
+# IE has recovered a little bit
+price 2150-4-14 IE 39.50
+
+# run "umm sample1.dat bal 2150-4-14"
+# to find that club owns 48 shares of IE worth $1896.00, plus $10.06
+# against 41.432976 shares outstanding: each share is worth $46.003454
+# so each member buys 1.086875 shares
+
+# meeting 8
+
+xfer 2150-4-15 contributions Al 50
+xfer 2150-4-15 Al club 50
+xfer 2150-4-15 club Al 1.086875 share
+xfer 2150-4-15 contributions Barb 50
+xfer 2150-4-15 Barb club 50
+xfer 2150-4-15 club Barb 1.086875 share
+xfer 2150-4-15 contributions Chas 50
+xfer 2150-4-15 Chas club 50
+xfer 2150-4-15 club Chas 1.086875 share
+xfer 2150-4-15 contributions Deb 50
+xfer 2150-4-15 Deb club 50
+xfer 2150-4-15 club Deb 1.086875 share
+xfer 2150-4-15 contributions Ed 50
+xfer 2150-4-15 Ed club 50
+xfer 2150-4-15 club Ed 1.086875 share
+xfer 2150-4-15 contributions Frank 50
+xfer 2150-4-15 Frank club 50
+xfer 2150-4-15 club Frank 1.086875 share
+
+# IE goes up very nicely!
+price 2150-4-30 IE 51.43
+xfer 2150-4-30 interest club 1.54
+
+# run "umm sample1.dat bal 2150-4-30"
+# to find that club owns 48 shares of IE worth $2468.64, plus $311.60
+# against 47.954226 shares outstanding: each share is worth $57.976955
+# so each member buys 0.862412 shares... but AEthelraed misses again
+
+# meeting 9
+
+xfer 2150-5-1 contributions Al 50
+xfer 2150-5-1 Al club 50
+xfer 2150-5-1 club Al 0.862412 share
+xfer 2150-5-1 contributions Barb 50
+xfer 2150-5-1 Barb club 50
+xfer 2150-5-1 club Barb 0.862412 share
+xfer 2150-5-1 contributions Chas 50
+xfer 2150-5-1 Chas club 50
+xfer 2150-5-1 club Chas 0.862412 share
+xfer 2150-5-1 contributions Deb 50
+xfer 2150-5-1 Deb club 50
+xfer 2150-5-1 club Deb 0.862412 share
+todo 2150-5-1 AEthelraed misses!
+xfer 2150-5-1 contributions Frank 50
+xfer 2150-5-1 Frank club 50
+xfer 2150-5-1 club Frank 0.862412 share
+
+# And so on and on and on... make up your own numbers from here on!
+
