@@ -19,12 +19,11 @@ along with umm; if not, write to the Free Software Foundation, Inc.,
 $Id: UMM.hs,v 1.61 2010/05/09 06:24:43 uwe Exp $ -}
 
 module Main where
-import Prelude hiding (putStr,putStrLn,print,readFile,getContents)
+import Prelude
 import Control.Monad
 import Data.List
 import Data.Maybe
 import System.Exit
-import System.IO.UTF8
 import System.Environment.UTF8
 import System.Time
 
