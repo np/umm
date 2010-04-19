@@ -226,10 +226,20 @@ shM val = if isJust val then show (fromJust val) else ""
 shDef :: String -> String -> String
 shDef s d = if s == "" then d else s
 
--- We use "show str" here to add quotes and escape any escapables
+-- Escape non-printable chars, backslash and double quotes.
+-- This is different from 'show' on non-ascii characters which
+-- are preserved (like accents for instance).
+quoteChar :: Char -> String
+quoteChar c
+  | isAscii c && not (isPrint c)  = tail . init . show $ c
+  | c `elem` "\"\\"               = ['\\',c]
+  | otherwise                     = [c]
+
+quote :: String -> String
+quote = ('"':) . (++"\"") . concatMap quoteChar
 
 optStr :: String -> String
-optStr str = shIf (str /= "") (show str)
+optStr str = shIf (str /= "") (quote str)
 
 shRec :: Bool -> String
 shRec rec = shIf rec "*"
