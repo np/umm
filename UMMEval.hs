@@ -16,11 +16,11 @@ You should have received a copy of the GNU General Public License
 along with umm; if not, write to the Free Software Foundation, Inc.,
 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-$Id: UMMEval.hs,v 1.37 2010/01/03 06:02:32 uwe Exp $ -}
+$Id: UMMEval.hs,v 1.40 2010/05/02 06:53:12 uwe Exp $ -}
 
 module UMMEval (validateRecs, validateCCS, validateAccts, classifyRecs,
                 validateTransPrices, generateImplicitPrices, getBalances,
-                getPrices) where
+                getPrices, expandRecurringTrans) where
 import Prelude hiding (putStr,putStrLn,print)
 import Data.List
 import Data.Maybe
@@ -109,22 +109,24 @@ validateAccts dc ccs accts =
 -- separately (or just account groups, right now)
 
 classifyRecs :: [Record] -> (Name, [Record], [Record], [Record], [Record],
-                             [Record], [Record], [Record], [Record])
-classifyRecs recs = cw recs [] [] [] [] [] [] []
-  where cw [] c i e a g t p =
+                             [Record], [Record], [Record], [Record], [Record])
+classifyRecs rs = cw rs [] [] [] [] [] [] [] []
+  where cw [] c i e a g t p r =
           let dc = if null c then Name "zorkmid" else getRecName (last c)
               (cb, cd) = partition isB (vsN c)
-          in (dc, cb, cd, vsN i, vsN e, reverse a, vsN g, asD dc t, asD dc p)
-        cw (r:rs) c i e a g t p =
-          case r of
-            CommentRec _       -> cw rs c i e a g t p
-            CCSRec _ _ _ _     -> cw rs (r:c) i e a g t p
-            IncomeRec _ _      -> cw rs c (r:i) e a g t p
-            ExpenseRec _ _     -> cw rs c i (r:e) a g t p
-            AccountRec _ _ _ _ -> cw rs c i e (r:a) g t p
-            GroupRec _ _       -> cw rs c i e a (r:g) t p
-            PriceRec _ _ _ _   -> cw rs c i e a g t (r:p)
-            _                  -> cw rs c i e a g (r:t) p
+          in (dc, cb, cd, vsN i, vsN e, reverse a, vsN g,
+              asD dc t, asD dc r, asD dc p)
+        cw (rec:recs) c i e a g t p r =
+          case rec of
+            CommentRec _       -> cw recs c i e a g t p r
+            CCSRec _ _ _ _     -> cw recs (rec:c) i e a g t p r
+            IncomeRec _ _      -> cw recs c (rec:i) e a g t p r
+            ExpenseRec _ _     -> cw recs c i (rec:e) a g t p r
+            AccountRec _ _ _ _ -> cw recs c i e (rec:a) g t p r
+            GroupRec _ _       -> cw recs c i e a (rec:g) t p r
+            PriceRec _ _ _ _   -> cw recs c i e a g t (rec:p) r
+            RecurRec _ _ _ _   -> cw recs c i e a g t p (rec:r)
+            _                  -> cw recs c i e a g (rec:t) p r
         vsN = uChk . sortBy cmpRecName
         uChk vs = if uniqAdjBy (\v1 v2 -> cmpRecName v1 v2 == EQ) vs
                      then vs
@@ -137,6 +139,7 @@ classifyRecs recs = cw recs [] [] [] [] [] [] []
           XferRec d f from (map (addDCCAt dc) tos) m c
         addDC dc (ExchRec t d f acc ccsa1 ccsa2 m) =
           ExchRec t d f acc (addDCCA dc ccsa1) (addDCCA dc ccsa2) m
+        addDC dc (RecurRec p dl dr r) = RecurRec p dl dr (addDC dc r)
         addDC _ r = r
         addDCCAt d (n,a) = (n, addDCCA d a)
         isB (CCSRec _ _ ma nb) = isNothing ma && nb == noName
@@ -163,6 +166,7 @@ validateTransPrices ccs incs exps accts tps =
         chk (ExchRec _ _ _ a (CCSAmt c1 _) (CCSAmt c2 _) _) =
             notIn a accts || notIn c1 ccs || notIn c2 ccs
         chk (ToDoRec _ _ _) = False
+        chk (RecurRec _ _ _ r) = chk r
         chk _ = True
         chkTo (to, CCSAmt n _) =
           (notIn to exps && notIn to accts) || notIn n ccs
@@ -224,34 +228,33 @@ scaleBy qs d = map (s1 (getCN d) (getCA d)) qs
               qq = getCA q
           in if qn == dn then CCSAmt qn (Amount (qq * dq)) else q
 
-maybeRecord :: Bool -> Maybe Name -> Record -> AccountData -> (Name -> Bool) ->
+maybeRecord :: Maybe Name -> Record -> AccountData -> (Name -> Bool) ->
                Ledger e (Record, [CCSAmt]) ()
-maybeRecord rt reg record newaccs tst =
+maybeRecord reg record newaccs tst =
   let isJ = isJust reg
       rn = fromJust reg
       acc = filter (\a -> fst a == rn) newaccs
       nb = if null acc
               then [CCSAmt noName (Amount 0)]
               else snd (head acc)
-  in if rt && isJ && (tst rn || rn == noName)
+  in if isJ && (tst rn || rn == noName)
         then recordInfo (record, nb)
         else recordNil
 
-maybeDo :: Bool -> Maybe Name -> Bool -> Record -> Bool ->
+maybeDo :: Maybe Name -> Bool -> Record -> Bool ->
            AccountData -> AccountData -> (Name -> Bool) ->
            Ledger e (Record, [CCSAmt]) AccountData
-maybeDo rt reg dorec record isrec accs newaccs tst =
+maybeDo reg dorec record isrec accs newaccs tst =
   if dorec
      then if isrec
              then return newaccs
-             else maybeRecord rt reg record newaccs tst >> return accs
-     else maybeRecord rt reg record newaccs tst >> return newaccs
+             else maybeRecord reg record newaccs tst >> return accs
+     else maybeRecord reg record newaccs tst >> return newaccs
 
 exchTrans :: Maybe Name -> Bool -> Record -> AccountData ->
              Ledger e (Record, [CCSAmt]) AccountData
 exchTrans reg dorec record@(ExchRec _ _ isrec acc amtn amto _) accs =
-  maybeDo True reg dorec record isrec accs
-          (doExch accs acc amtn amto) (== acc)
+  maybeDo reg dorec record isrec accs (doExch accs acc amtn amto) (== acc)
   where doExch [] _ _ _ = []
         doExch ((an,ab):as) n en eo =
           if an == n
@@ -259,18 +262,13 @@ exchTrans reg dorec record@(ExchRec _ _ isrec acc amtn amto _) accs =
              else (an,ab) : doExch as n en eo
 exchTrans _ _ r _ = intErr "exchTrans" r
 
--- TODO: alternately, we could have '(xfer1 (not dorec))' in the
--- foldM, that would cause register displays to be shown once for each
--- sub-transaction, but reconciliation displays would show the entire
--- transaction only once
-
 xferTrans :: Maybe Name -> Bool -> Record -> AccountData ->
              Ledger e (Record, [CCSAmt]) AccountData
 xferTrans reg dorec record@(XferRec _ isrec from tos _ _) accs =
   foldM (xfer1 False) accs (init tos) >>= (\a -> xfer1 True a (last tos))
-  where xfer1 rf as (to,amt) = maybeDo rf reg dorec record isrec as
-                                       (doXfer as from to amt)
-                                       (\rn -> rn == from || rn == to)
+  where xfer1 rf as (to,amt) =
+          maybeDo reg dorec record isrec as (doXfer as from to amt)
+                  (\rn -> (rf && rn == from) || rn == to)
         doXfer [] _ _ _ = []
         doXfer (a@(an,ab):as) nf nt e
           | an == nf    = (an, subFrom ab e) : doXfer as nf nt e
@@ -287,7 +285,7 @@ splitTrans :: Maybe Name -> Record -> AccountData ->
               Ledger e (Record, [CCSAmt]) AccountData
 splitTrans reg record@(SplitRec _ ccs (Amount an) (Amount ao)) acc =
   let newaccs = map doST acc
-  in maybeRecord True reg record newaccs (const True) >> return newaccs
+  in maybeRecord reg record newaccs (const True) >> return newaccs
   where doST (a1,a2) = (a1, scaleBy a2 (CCSAmt ccs (Amount (an/ao))))
 splitTrans _ r _ = intErr "splitTrans" r
 
@@ -295,7 +293,7 @@ splitTrans _ r _ = intErr "splitTrans" r
 -- new version with printing of initial values
 mkInit reg as =
   let iaccs = (map (\a -> (getRecName a, maybeToList (gI a))) as)
-  in maybeRecord True reg (CommentRec "") iaccs (const True) >> return iaccs
+  in maybeRecord reg (CommentRec "") iaccs (const True) >> return iaccs
   where gI (AccountRec _ _ _ mi) = mi
         gI r = intErr "mkInit" r
 -}
@@ -357,3 +355,40 @@ getPrices nm dc date prices =
                      else get ps
         get _ = recordNil
         doShow t p = putStrLn t >> mapM_ print (reverse p)
+
+-- Convert a list of RecurRec records into equivalent list
+-- of individual transactions, sorted by date
+
+expandRecurringTrans :: [Record] -> [Record]
+expandRecurringTrans rs = sortBy cmpRecDate (concatMap eRT rs)
+  where eRT (RecurRec (PND n) dl dr rec) =
+          map (mRD rec dr) (genD (getRecDate rec) n dl)
+        eRT (RecurRec (PNW n) dl dr rec) =
+          map (mRD rec dr) (genD (getRecDate rec) (7*n) dl)
+        eRT (RecurRec PSW dl dr rec) =
+          let da = getRecDate rec
+              db = offsetDate da 3
+              mf = map (mRD rec dr)
+          in mf (genD da 7 dl) ++ mf (genD db 7 dl)
+        eRT (RecurRec (PNM n) dl dr rec) =
+          map (mRD rec dr) (genM (getRecDate rec) n dl)
+        eRT (RecurRec (PNY n) dl dr rec) =
+          map (mRD rec dr) (genM (getRecDate rec) (12*n) dl)
+        eRT (RecurRec PSM dl dr rec) =
+          let da = getRecDate rec
+              db = offsetDate da 15
+              mf = map (mRD rec dr)
+          in mf (genM da 1 dl) ++ mf (genM db 1 dl)
+        eRT rec = intErr "expandRecurringTrans" rec
+        genD d1 dd d2 =
+          let j = julianDate d1
+          in map gregorianDate [j, j + dd .. julianDate d2]
+        genM d1 dm d2 = if d1 <= d2 then d1 : genM (oMo d1 dm) dm d2 else []
+        oMo (Date y m d) mstep =
+          let (dy,m1) = divMod (mstep + m - 1) 12
+          in Date (y + dy) (m1 + 1) d
+        mRD (XferRec _ _ f t m i) dr dc =
+          XferRec dc (dc <= dr) f t m i
+        mRD (ExchRec t _ _ a c1 c2 m) dr dc =
+          ExchRec t dc (dc <= dr) a c1 c2 m
+        mRD r _ _ = intErr "expandRecurringTrans" r

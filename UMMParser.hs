@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License
 along with umm; if not, write to the Free Software Foundation, Inc.,
 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-$Id: UMMParser.hs,v 1.42 2010/01/02 22:33:34 uwe Exp $ -}
+$Id: UMMParser.hs,v 1.43 2010/05/02 00:37:26 uwe Exp $ -}
 
 -- TODO: template := <to be determined>
 
@@ -27,6 +27,9 @@ import Data.Ratio
 import Text.ParserCombinators.Parsec as TPCP hiding (spaces)
 
 import UMMData
+
+intErr :: String -> o
+intErr loc = error ("internal error at " ++ loc ++ ", please report this")
 
 readInt :: String -> Integer
 readInt s = foldl ma 0 s
@@ -212,13 +215,39 @@ parseReconcile :: Parser Bool
 parseReconcile =
   option False (TPCP.try (many space >> oneOf "*!" >> return True))
 
-intErr :: String -> o
-intErr loc = error ("internal error at " ++ loc ++ ", please report this")
+parsePeriod :: Parser Period
+parsePeriod =
+  spaces >> (pPG <|>
+             pPS "daily" (PND 1) <|>
+             pPS "weekly" (PNW 1) <|>
+             pPS "monthly" (PNM 1) <|>
+             pPS "quarterly" (PNM 3) <|>
+             pPS "annually" (PNY 1) <|>
+             TPCP.try (pPS "biweekly" (PNW 2)) <|>
+             TPCP.try (pPS "bimonthly" (PNM 2)) <|>
+             pPS "biannually" (PNY 2) <|>
+             TPCP.try (pPS "semiweekly" PSW) <|>
+             TPCP.try (pPS "semimonthly" PSM) <|>
+             pPS "semiannually" (PNM 6))
+  where pPS s p = string s >> return p
+        pPG = do n <- parseInt
+                 spaces
+                 p <- parsePrefixOf 1 "days" <|>
+                      parsePrefixOf 1 "weeks" <|>
+                      parsePrefixOf 1 "months" <|>
+                      parsePrefixOf 1 "years"
+                 let ni = fromInteger n
+                 return (case p of
+                         "days" -> PND ni
+                         "weeks" -> PNW ni
+                         "months" -> PNM ni
+                         "years" -> PNY ni
+                         _ -> intErr "parsePeriod")
 
 -- The top-level record parsers
 
-parseCCS, parseIE, parseAccount, parseGroup, parsePrice, parseXfer,
-  parseEBS, parseSplit, parseTodo, parseComment, parseBlank, parseRecord ::
+parseCCS, parseIE, parseAccount, parseGroup, parsePrice, parseXfer, parseEBS,
+  parseSplit, parseTodo, parseRecur, parseComment, parseBlank, parseRecord ::
   Parser Record
 
 parseCCS =
@@ -314,6 +343,19 @@ parseComment =
      comment <- many anyChar
      return (CommentRec (trimspace comment))
 
+parseRecur =
+  do string "recurring"
+     period <- parsePeriod
+     spaces			-- TODO: keep this syntactic sugar?
+     string "until"		-- it kinda reads better...?
+     dl <- parseDate
+     spaces
+     dr <- option startTime
+                  (TPCP.try (parsePrefixOf 3 "reconciled" >> parseDate))
+     many space
+     record <- parseEBS <|> parseXfer
+     return (RecurRec period dl dr record)
+
 parseBlank = many space >> return (CommentRec "")
 
 parseRecord =
@@ -327,6 +369,7 @@ parseRecord =
            <|> parseTodo
            <|> parseAccount
            <|> parseGroup
+           <|> parseRecur
            <|> parseComment
            <|> parseBlank	-- this must be last, as it can match nothing
      many space

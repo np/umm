@@ -16,16 +16,18 @@ You should have received a copy of the GNU General Public License
 along with umm; if not, write to the Free Software Foundation, Inc.,
 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-$Id: UMMData.hs,v 1.49 2010/01/02 22:33:34 uwe Exp $ -}
+$Id: UMMData.hs,v 1.50 2010/05/02 00:37:25 uwe Exp $ -}
 
 module UMMData (Name(..), Date(..), Amount(..), startTime,
                 Command(..), CmdOpt(..), Record(..), genDate,
                 getRecDate, cmpRecDate, getRecName, cmpRecName,
                 Ledger(..), runLedger, getResult, getInfo, getErrs,
                 recordInfo, recordErr, recordNil, showExp, BSE(..),
-                CCSAmt(..), cmpCCSAmtName, eqCCSAmtName, AccountData,
-                noName, todoName, joinDrop, roundP, isLeap, validDate,
-                trimspace, mylines, mergelines, uniqAdjBy, uniqAdj) where
+                Period(..), CCSAmt(..), cmpCCSAmtName, eqCCSAmtName,
+                AccountData, noName, todoName, joinDrop, roundP, isLeap,
+                validDate, julianDate, gregorianDate, offsetDate,
+                previousDate, nextDate, trimspace, mylines, mergelines,
+                uniqAdjBy, uniqAdj) where
 import Prelude
 import Data.Char
 import Data.List
@@ -171,6 +173,28 @@ instance Show BSE where
   show S = "sell"
   show E = "exch"
 
+data Period = PSW | PSM | PND Int | PNW Int | PNM Int | PNY Int deriving (Eq)
+
+instance Show Period where
+  show PSW = "semiweekly"		-- twice per week: N, N + 3, N + 7, ...
+  show PSM = "semimonthly"		-- twice per month: N, N +- 15 days
+  show (PND n) | n == 1     = "daily"
+               | n == 7     = "weekly"
+               | n == 14    = "biweekly"
+               | otherwise  = show n ++ " days"
+  show (PNW n) | n == 1     = "weekly"
+               | n == 2     = "biweekly"
+               | otherwise  = show n ++ " weeks"
+  show (PNM n) | n == 1     = "monthly"
+               | n == 2     = "bimonthly"
+               | n == 3     = "quarterly"
+               | n == 6     = "semiannually"
+               | n == 12    = "annually"
+               | otherwise  = show n ++ " months"
+  show (PNY n) | n == 1     = "annually"
+               | n == 2     = "biannually"
+               | otherwise  = show n ++ " years"
+
 data Record = CCSRec Name String (Maybe Amount) Name
             | IncomeRec Name String
             | ExpenseRec Name String
@@ -183,6 +207,7 @@ data Record = CCSRec Name String (Maybe Amount) Name
             | CommentRec String
             | ToDoRec Date Bool String
             | ErrorRec String
+            | RecurRec Period Date Date Record
 
 instance Show Record where
   show = showR
@@ -235,6 +260,11 @@ showR (ToDoRec d r memo) =
 
 showR (ErrorRec str) = joinDrop ["#err", str]
 
+showR (RecurRec p dl dr r) =
+  joinDrop ["recurring", show p, "until", show dl,
+            if dr == startTime then "" else "reconciled " ++ show dr,
+            "\\\n    \\", show r]
+
 showTos :: [(Name, CCSAmt)] -> String
 showTos [] = "{}"
 showTos (t:[]) = showTo1 False t
@@ -274,6 +304,7 @@ getRecDate (XferRec d _ _ _ _ _) =   d
 getRecDate (ExchRec _ d _ _ _ _ _) = d
 getRecDate (SplitRec d _ _ _) =      d
 getRecDate (ToDoRec d _ _) =         d
+getRecDate (RecurRec _ _ _ r) =      getRecDate r
 getRecDate _ = startTime	-- so it works for every Record
 
 -- Get the name (or at any rate /some/ name) from a Record
@@ -376,6 +407,51 @@ validDate (Date y m d) =
   let lim = [ 0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 ] !! m
   in (m >= 1 && m <= 12 && d >= 1 &&
        (d <= lim || m == 2 && isLeap y && d <= 29))
+
+-- This returns an integer which is the Julian day number at noon + eps, ie,
+-- an instant after it has incremented to a new (Julian) day. Inputs are
+-- 4-digit (or whatever is appropriate) year, month from 1 to 12, day from
+-- 1 to 28/31 as appropriate.
+--
+-- Jan 1 2000 = 2451545
+
+julianDate :: Date -> Int
+julianDate (Date y m d) =
+  let a = quot (14 - m) 12
+      y1 = y + 4800 - a
+      m1 = m + 12*a - 3
+  in d + quot (153*m1 + 2) 5 + 365*y1 + quot y1 4
+       + quot y1 400 - quot y1 100 - 32045
+
+-- This returns astronomical years for dates before 1 AD: the year before
+-- that is year 0, not 1 BC, etc. For years after 1 AD, this returns
+-- proleptic Gregorian dates. Taken & hacked up from FORTRAN routine from US
+-- Naval Observatory website
+
+gregorianDate :: Int -> Date
+gregorianDate j =
+  let l1 = j + 68569
+      n = quot (4*l1) 146097
+      l2 = l1 - quot (146097*n + 3) 4
+      i1 = quot (4000*(l2+1)) 1461001
+      l3 = l2 + 31 - quot (1461*i1) 4
+      j1 = quot (80*l3) 2447
+      d = l3 - quot (2447*j1) 80
+      l4 = quot j1 11
+      m = j1 + 2 - 12*l4
+      y = 100*(n - 49) + i1 + l4
+  in Date y m d
+
+-- This returns the date offset by n days from the given date
+
+offsetDate :: Date -> Int -> Date
+offsetDate d n = gregorianDate (n + julianDate d)
+
+-- These return the previous & next date from the given date
+
+previousDate, nextDate :: Date -> Date
+previousDate d = offsetDate d (-1)
+nextDate d = offsetDate d 1
 
 -- Remove leading and trailing whitespace from a string.
 

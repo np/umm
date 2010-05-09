@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License
 along with umm; if not, write to the Free Software Foundation, Inc.,
 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-$Id: UMM.hs,v 1.57 2010/01/17 00:13:47 uwe Exp $ -}
+$Id: UMM.hs,v 1.58 2010/05/02 06:53:12 uwe Exp $ -}
 
 module Main where
 import Prelude hiding (putStr,putStrLn,print,readFile,getContents)
@@ -59,14 +59,23 @@ getLines fp =
 -- Merge explicit (ps) and implicit (qs) prices: the inputs are sorted
 -- by date, newest first, and the output is the same, preferring
 -- explicit over implicit prices in case of a date match.
+-- For transactions, the inputs are sorted the other way: oldest first
 
-mergePrices :: [Record] -> [Record] -> [Record]
+mergePrices, mergeTrans :: [Record] -> [Record] -> [Record]
+
 mergePrices [] qs = qs
 mergePrices ps [] = ps
 mergePrices pa@(p:ps) qa@(q:qs) =
   if cmpRecDate p q == LT
      then q : mergePrices pa qs
      else p : mergePrices ps qa
+
+mergeTrans [] qs = qs
+mergeTrans ps [] = ps
+mergeTrans pa@(p:ps) qa@(q:qs) =
+  if cmpRecDate p q == LT
+     then p : mergeTrans ps qa
+     else q : mergeTrans pa qs
 
 -- Get the base currency for a given CCS, which may be itself
 
@@ -227,13 +236,15 @@ main :: IO ()
 main =
   do (file, action) <- processArgs
      recs <- getLines file >>= mapM (return . parseURecord) >>= validateRecs
-     let (dc, cb, c1, incs, exps, a1, grps, trans, p1) = classifyRecs recs
+     let (dc, cb, c1, incs, exps, a1, grps, tr1, per, pr1) = classifyRecs recs
      cd <- validateCCS dc cb c1
      let ccs = cb ++ cd
      accts <- validateAccts dc ccs a1
-     validateTransPrices ccs incs exps accts (trans ++ p1)
-     let p2 = generateImplicitPrices dc trans cd
-         prices = mergePrices (reverse p1) p2
+     validateTransPrices ccs incs exps accts (tr1 ++ per ++ pr1)
+     let tr2 = expandRecurringTrans per
+         trans = mergeTrans tr1 tr2
+         pr2 = generateImplicitPrices dc trans cd
+         prices = mergePrices (reverse pr1) pr2
          pse r = putStrLn (showExp r) >> putStrLn ""
      case action of
        ChangeCmd verbose name date1 date2 ->

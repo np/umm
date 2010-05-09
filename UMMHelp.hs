@@ -16,13 +16,13 @@ You should have received a copy of the GNU General Public License
 along with umm; if not, write to the Free Software Foundation, Inc.,
 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-$Id: UMMHelp.hs,v 1.34 2010/01/19 04:02:20 uwe Exp $ -}
+$Id: UMMHelp.hs,v 1.37 2010/05/02 21:32:50 uwe Exp $ -}
 
 module UMMHelp (writeHdr, usageMsg) where
 import Prelude
 
 version :: String
-version = "0.1.6"
+version = "0.2.0"
 
 writeHdr :: String
 writeHdr =
@@ -130,10 +130,10 @@ usageMsg prog =
   "    'price' date [amount1] name1 amount2 [name2]\n" ++
   "    'split' date name amount1 amount2\n" ++
   "    'todo' [rec] date text\n" ++
-  "    'xfer' [rec] date name1 name2 amount [name] [desc] [id]\n" ++
-  "    'xfer' [rec] date name1 {name2 amount [name],\\\n" ++
+  "    [period] 'xfer' [rec] date name1 name2 amount [name] [desc] [id]\n" ++
+  "    [period] 'xfer' [rec] date name1 {name2 amount [name],\\\n" ++
   "        \\ name3 amount [name], ...} [desc] [id]\n" ++
-  "    'exch' [rec] date name amount1 name1 amount2 [name2] [desc]\n" ++
+  "    [period] 'exch' [rec] date name amount1 name1 amount2 [name2] [desc]\n" ++
   "\n" ++
   "There are also 'buy' and 'sell' records which are just\n" ++
   "syntactic sugar for 'exch'; see more details below in the\n" ++
@@ -247,7 +247,7 @@ usageMsg prog =
   "        split 2000-5-8 GE 15/7 5/7\n" ++
   "\n" ++
   "\n" ++
-  "* 'xfer [rec] date name1 name2 amount [name] [desc] [id]'\n" ++
+  "* '[period] xfer [rec] date name1 name2 amount [name] [desc] [id]'\n" ++
   "  records are used to transfer 'amount' of 'name' from account\n" ++
   "  'name1' to account 'name2'; 'name1' may be either an account\n" ++
   "  specified by an 'account' record, or a source specified by\n" ++
@@ -275,9 +275,11 @@ usageMsg prog =
   "  The second form of the 'xfer' record allows specification of\n" ++
   "  multiple transfers as one logical transaction.\n" ++
   "\n" ++
+  "  For details on the optional [period] prefix, see below.\n" ++
   "\n" ++
-  "* 'exch [rec] date name amount1 name1 amount2 [name2] [desc]'\n" ++
-  "  records and their aliases 'buy and 'sell' are used to trade\n" ++
+  "\n" ++
+  "* '[period] exch [rec] date name amount1 name1 amount2 [name2] [desc]'\n" ++
+  "  records and their aliases 'buy' and 'sell' are used to trade\n" ++
   "  some amount of one ccs for another. To some extent, these\n" ++
   "  are syntactic sugar: the same could be accomplished with a\n" ++
   "  pair of 'xfer' records, but this is a little clearer and\n" ++
@@ -309,6 +311,8 @@ usageMsg prog =
   "\n" ++
   "        exch 2009/10/2 brokerage 3.959 VTSMX 100 US$\n" ++
   "        exch 2009/10/2 brokerage 100 US$ 3.959 VTSMX\n" ++
+  "\n" ++
+  "  Again, for details on the optional [period] prefix, see below.\n" ++
   "\n" ++
   "\n" ++
   "* 'todo [rec] date text' is basically a sticky note in the\n" ++
@@ -372,4 +376,30 @@ usageMsg prog =
   "\n" ++
   "\n" ++
   "* 'id' (in an 'xfer' record) is a sequence of digits: a\n" ++
-  "  check number or other identifying number.\n"
+  "  check number or other identifying number.\n" ++
+  "\n" ++
+  "\n" ++
+  "* 'period' is an optional prefix of 'xfer' and 'exch' records:\n" ++
+  "  it specifies that this is a periodic transaction. It has the\n" ++
+  "  format\n" ++
+  "\n" ++
+  "        recurring interval until end-date [reconciled rec-date]\n" ++
+  "\n" ++
+  "  where 'recurring', 'until', and 'reconciled' are literal keywords,\n" ++
+  "  end-date and rec-date are dates in the usual format described above,\n" ++
+  "  and interval specifies how far apart the repetitions are: interval\n" ++
+  "  may be any one of the literal keywords 'daily', 'weekly', 'monthly',\n" ++
+  "  'quarterly', 'annually', 'biweekly', 'bimonthly', 'biannually',\n" ++
+  "  'semiweekly', 'semimonthly', or 'semiannually', or an integer\n" ++
+  "  followed by one of the literal keywords 'days', 'weeks', 'months',\n" ++
+  "  or 'years'. For example\n" ++
+  "\n" ++
+  "        recurring monthly until 2010-12-31 \\\n" ++
+  "            \\ xfer 2009-2-27 interest abc:savings 0.01\n" ++
+  "\n" ++
+  "  is a monthly interest payment into abc:savings, occurring on\n" ++
+  "  the 27th of each month from February 2009 until December 2010.\n" ++
+  "\n" ++
+  "  The reconciled keyword and rec-date are themselves optional.\n" ++
+  "  If present, they indicate that instances of this record before\n" ++
+  "  the rec-date are reconciled.\n"
