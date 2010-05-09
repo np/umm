@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License
 along with umm; if not, write to the Free Software Foundation, Inc.,
 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-$Id: UMMEval.hs,v 1.40 2010/05/02 06:53:12 uwe Exp $ -}
+$Id: UMMEval.hs,v 1.44 2010/05/10 04:06:46 uwe Exp $ -}
 
 module UMMEval (validateRecs, validateCCS, validateAccts, classifyRecs,
                 validateTransPrices, generateImplicitPrices, getBalances,
@@ -112,8 +112,11 @@ classifyRecs :: [Record] -> (Name, [Record], [Record], [Record], [Record],
                              [Record], [Record], [Record], [Record], [Record])
 classifyRecs rs = cw rs [] [] [] [] [] [] [] []
   where cw [] c i e a g t p r =
-          let dc = if null c then Name "zorkmid" else getRecName (last c)
-              (cb, cd) = partition isB (vsN c)
+          let c1 = if null c
+                      then [CCSRec (Name "zorkmid") "" Nothing noName]
+                      else c
+              dc = getRecName (last c1)
+              (cb, cd) = partition isB (vsN c1)
           in (dc, cb, cd, vsN i, vsN e, reverse a, vsN g,
               asD dc t, asD dc r, asD dc p)
         cw (rec:recs) c i e a g t p r =
@@ -165,7 +168,7 @@ validateTransPrices ccs incs exps accts tps =
             (notIn from incs && notIn from accts) || any chkTo tos
         chk (ExchRec _ _ _ a (CCSAmt c1 _) (CCSAmt c2 _) _) =
             notIn a accts || notIn c1 ccs || notIn c2 ccs
-        chk (ToDoRec _ _ _) = False
+        chk (NoteRec _ _ _ _) = False
         chk (RecurRec _ _ _ r) = chk r
         chk _ = True
         chkTo (to, CCSAmt n _) =
@@ -237,7 +240,7 @@ maybeRecord reg record newaccs tst =
       nb = if null acc
               then [CCSAmt noName (Amount 0)]
               else snd (head acc)
-  in if isJ && (tst rn || rn == noName)
+  in if isJ && tst rn
         then recordInfo (record, nb)
         else recordNil
 
@@ -254,7 +257,8 @@ maybeDo reg dorec record isrec accs newaccs tst =
 exchTrans :: Maybe Name -> Bool -> Record -> AccountData ->
              Ledger e (Record, [CCSAmt]) AccountData
 exchTrans reg dorec record@(ExchRec _ _ isrec acc amtn amto _) accs =
-  maybeDo reg dorec record isrec accs (doExch accs acc amtn amto) (== acc)
+  maybeDo reg dorec record isrec accs (doExch accs acc amtn amto)
+          (\rn -> rn == acc || rn == noName)
   where doExch [] _ _ _ = []
         doExch ((an,ab):as) n en eo =
           if an == n
@@ -268,7 +272,7 @@ xferTrans reg dorec record@(XferRec _ isrec from tos _ _) accs =
   foldM (xfer1 False) accs (init tos) >>= (\a -> xfer1 True a (last tos))
   where xfer1 rf as (to,amt) =
           maybeDo reg dorec record isrec as (doXfer as from to amt)
-                  (\rn -> (rf && rn == from) || rn == to)
+                  (\rn -> (rf && (rn == from || rn == noName)) || rn == to)
         doXfer [] _ _ _ = []
         doXfer (a@(an,ab):as) nf nt e
           | an == nf    = (an, subFrom ab e) : doXfer as nf nt e
@@ -313,10 +317,20 @@ appTr d r f (t:ts) as =
             XferRec _ _ _ _ _ _ -> xferTrans r f t as >>= appTr d r f ts
             ExchRec _ _ _ _ _ _ _ -> exchTrans r f t as >>= appTr d r f ts
             SplitRec _ _ _ _  -> splitTrans r t as >>= appTr d r f ts
-            ToDoRec _ isrec _ ->
+            NoteRec _ isrec SN_T _ ->
               (if isrec then recordNil else recordInfo (t,[]))
                 >> appTr d r f ts as
+            NoteRec da isrec _ _ ->
+              (if isrec || not (ca d da)
+                  then recordNil
+                  else recordInfo (t,[])) >> appTr d r f ts as
             _ -> recordErr t >> appTr d r f ts as
+  where ca dn@(Date yn _ _) (Date _ ma da) =
+          let jn = julianDate dn
+              j1 = julianDate (Date (yn - 1) ma da)
+              j2 = julianDate (Date yn ma da)
+              j3 = julianDate (Date (yn + 1) ma da)
+          in abs (jn - j1) <= 7 || abs (jn - j2) <= 7 || abs (jn - j3) <= 7
 
 showT :: (Record, [CCSAmt]) -> IO ()
 showT (t,_) = print t
@@ -338,10 +352,11 @@ getBalances date1 date2 reg dorec accts trans =
 -- For now, we don't generate "swap prices" internally, so unless the user
 -- enters some, we won't see any; see also generateImplicitPrices above.
 
-getPrices :: Name -> Name -> Date -> [Record] -> IO ()
-getPrices nm dc date prices =
-  do let p1 = dropWhile (\t -> date < getRecDate t) prices
-         (_,i,e) = runLedger (get p1)
+getPrices :: Name -> Name -> Date -> Date -> [Record] -> IO ()
+getPrices nm dc date1 date2 prices =
+  do let p1 = dropWhile (\t -> date2 < getRecDate t) prices
+         p2 = takeWhile (\t -> date1 < getRecDate t) p1
+         (_,i,e) = runLedger (get p2)
      unless (null e) (doShow "Swap \"Prices\"" e >> putStrLn "")
      unless (null i) (doShow "Ordinary Prices" i)
      when (null i && null e)
@@ -363,8 +378,6 @@ expandRecurringTrans :: [Record] -> [Record]
 expandRecurringTrans rs = sortBy cmpRecDate (concatMap eRT rs)
   where eRT (RecurRec (PND n) dl dr rec) =
           map (mRD rec dr) (genD (getRecDate rec) n dl)
-        eRT (RecurRec (PNW n) dl dr rec) =
-          map (mRD rec dr) (genD (getRecDate rec) (7*n) dl)
         eRT (RecurRec PSW dl dr rec) =
           let da = getRecDate rec
               db = offsetDate da 3
@@ -372,8 +385,6 @@ expandRecurringTrans rs = sortBy cmpRecDate (concatMap eRT rs)
           in mf (genD da 7 dl) ++ mf (genD db 7 dl)
         eRT (RecurRec (PNM n) dl dr rec) =
           map (mRD rec dr) (genM (getRecDate rec) n dl)
-        eRT (RecurRec (PNY n) dl dr rec) =
-          map (mRD rec dr) (genM (getRecDate rec) (12*n) dl)
         eRT (RecurRec PSM dl dr rec) =
           let da = getRecDate rec
               db = offsetDate da 15

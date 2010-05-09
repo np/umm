@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License
 along with umm; if not, write to the Free Software Foundation, Inc.,
 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-$Id: UMM.hs,v 1.58 2010/05/02 06:53:12 uwe Exp $ -}
+$Id: UMM.hs,v 1.61 2010/05/09 06:24:43 uwe Exp $ -}
 
 module Main where
 import Prelude hiding (putStr,putStrLn,print,readFile,getContents)
@@ -229,7 +229,7 @@ hasCur c (XferRec _ _ _ tos _ _) = any hC tos
   where hC (_, CCSAmt n _) = c == n
 hasCur c (ExchRec _ _ _ _ (CCSAmt n1 _) (CCSAmt n2 _) _) = c == n1 || c == n2
 hasCur c (SplitRec _ n1 _ _) = c == n1
-hasCur _ (ToDoRec _ _ _) = False
+hasCur _ (NoteRec _ _ _ _) = False
 hasCur _ r = error ("internal error at hasCur! got " ++ show r)
 
 main :: IO ()
@@ -258,13 +258,14 @@ main =
        ExportCmd -> mapM_ pse trans >> mapM_ pse (reverse prices)
        ListDataCmd w ->
          doList w dc ccs accts grps incs exps
-       PriceCmd name date ->
+       PriceCmd name date1 date2 ->
          if elem name (map getRecName cb)
             then putStrLn (show name ++ " is a base CCS!")
             else let crec = find (\r -> getRecName r == name) cd
                  in if isNothing crec
                        then putStrLn ("Error! unknown CCS " ++ show name)
-                       else getPrices name (getNB (fromJust crec)) date prices
+                       else getPrices name (getNB (fromJust crec))
+                                      date1 date2 prices
        RegisterCmd name date1 date2 ->
          doRegister date1 date2 name dc ccs accts trans prices False
        ReconcileCmd name date ->

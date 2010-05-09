@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License
 along with umm; if not, write to the Free Software Foundation, Inc.,
 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-$Id: UMMParser.hs,v 1.43 2010/05/02 00:37:26 uwe Exp $ -}
+$Id: UMMParser.hs,v 1.47 2010/05/09 06:24:44 uwe Exp $ -}
 
 -- TODO: template := <to be determined>
 
@@ -42,6 +42,16 @@ readAmt ip fp =
       iv = readInt ip
       fv = readInt fp
   in (e*iv + fv) % e
+
+-- Parse a string, recognizing the whole string even if only a partial
+-- prefix of it is given: the size of the minimal acceptable prefix has
+-- to be specified to the parser
+
+parsePrefixOf :: Int -> String -> Parser String
+parsePrefixOf n str =
+  string (take n str) >> opts (drop n str) >> return str
+  where opts [] = return ()
+        opts (c:cs) = optional (char c >> opts cs)
 
 -- Hide parsec's spaces and substitute this one:
 -- want "spaces" to mean an actual something there
@@ -211,6 +221,56 @@ parseDate =
      return (Date (fromInteger y) (fromInteger m) (fromInteger d))
   where pMS s = char s >> parseInt >>= (\m -> char s >> return m)
 
+-- Parse a date range in any of several formats:
+--   DR1 -> an optional pair of dates, with defaults
+--   DR2 -> a year/month, generating a fractional-month-long range
+--   DR3 -> a year, generating a fractional-year-long range
+--   DR4 -> literal 'last' followed by a number -> that many days into past
+-- In DR[23], if the fractional input date is the same as the current
+-- date, go from the beginning of the period to the current date;
+-- otherwise, go the full period.
+
+parseDateRange, parseDR1, parseDR2, parseDR3, parseDR4 ::
+  Date -> Parser (Date, Date)
+parseDR1 now =
+  do date1 <- option now parseDate
+     date2 <- option startTime parseDate
+     return (if date2 < date1 then (date2, date1) else (date1, date2))
+
+parseDR2 dn@(Date yn mn _) =
+  do spaces
+     y <- parseInt
+     oneOf "/-"
+     m <- parseInt
+     let yi = fromInteger y
+         mi = fromInteger m
+         d1 = Date yi mi 1
+         d2 = if yi == yn && mi == mn
+                 then dn
+                 else previousDate (Date yi (mi + 1) 1)
+     return (d1, d2)
+
+parseDR3 dn@(Date yn _ _) =
+  do spaces
+     y <- parseInt
+     let yi = fromInteger y
+         d1 = Date yi 1 1
+         d2 = if yi == yn then dn else Date yi 12 31
+     return (d1, d2)
+
+parseDR4 dn =
+  do spaces
+     string "last"
+     spaces
+     dd <- parseInt
+     return (offsetDate dn (- fromInteger dd), dn)
+
+parseDateRange now =
+  TPCP.try (parseDR1 now) <|>
+  TPCP.try (parseDR2 now) <|>
+  TPCP.try (parseDR3 now) <|>
+  parseDR4 now
+
 parseReconcile :: Parser Bool
 parseReconcile =
   option False (TPCP.try (many space >> oneOf "*!" >> return True))
@@ -219,13 +279,13 @@ parsePeriod :: Parser Period
 parsePeriod =
   spaces >> (pPG <|>
              pPS "daily" (PND 1) <|>
-             pPS "weekly" (PNW 1) <|>
+             pPS "weekly" (PND 7) <|>
              pPS "monthly" (PNM 1) <|>
              pPS "quarterly" (PNM 3) <|>
-             pPS "annually" (PNY 1) <|>
-             TPCP.try (pPS "biweekly" (PNW 2)) <|>
+             pPS "annually" (PNM 12) <|>
+             TPCP.try (pPS "biweekly" (PND 14)) <|>
              TPCP.try (pPS "bimonthly" (PNM 2)) <|>
-             pPS "biannually" (PNY 2) <|>
+             pPS "biannually" (PNM 24) <|>
              TPCP.try (pPS "semiweekly" PSW) <|>
              TPCP.try (pPS "semimonthly" PSM) <|>
              pPS "semiannually" (PNM 6))
@@ -239,15 +299,15 @@ parsePeriod =
                  let ni = fromInteger n
                  return (case p of
                          "days" -> PND ni
-                         "weeks" -> PNW ni
+                         "weeks" -> PND (7*ni)
                          "months" -> PNM ni
-                         "years" -> PNY ni
+                         "years" -> PNM (12*ni)
                          _ -> intErr "parsePeriod")
 
 -- The top-level record parsers
 
 parseCCS, parseIE, parseAccount, parseGroup, parsePrice, parseXfer, parseEBS,
-  parseSplit, parseTodo, parseRecur, parseComment, parseBlank, parseRecord ::
+  parseSplit, parseTBA, parseRecur, parseComment, parseBlank, parseRecord ::
   Parser Record
 
 parseCCS =
@@ -312,12 +372,12 @@ parseEBS =
      ca2 <- parseCCSAmt
      memo <- parseOptionalString
      let et = case rtype of
-                "buy" -> B
-                "sell" -> S
-                "exch" -> E
+                "buy" -> BSE_B
+                "sell" -> BSE_S
+                "exch" -> BSE_E
                 _ -> intErr "parseEBS"
          ca1 = CCSAmt name1 amt1
-     if et == S
+     if et == BSE_S
         then return (ExchRec et date rec acct ca2 ca1 memo)
         else return (ExchRec et date rec acct ca1 ca2 memo)
 
@@ -329,13 +389,18 @@ parseSplit =
      amt2 <- parseAmount
      return (SplitRec date name amt1 amt2)
 
-parseTodo =
-  do string "todo"
+parseTBA =
+  do rtype <- string "todo" <|> string "birthday" <|> string "anniversary"
      rec <- parseReconcile
      date <- parseDate
      spaces
      memo <- many anyChar
-     return (ToDoRec date rec (trimspace memo))
+     let nt = case rtype of
+                "todo" -> SN_T
+                "birthday" -> SN_B
+                "anniversary" -> SN_A
+                _ -> intErr "parseTBA"
+     return (NoteRec date rec nt (trimspace memo))
 
 parseComment =
   do many1 (oneOf "#;")
@@ -365,16 +430,14 @@ parseRecord =
            <|> parseCCS
            <|> TPCP.try parseIE
            <|> TPCP.try parseEBS
+           <|> TPCP.try parseAccount
            <|> parseSplit
-           <|> parseTodo
-           <|> parseAccount
+           <|> parseTBA
            <|> parseGroup
            <|> parseRecur
            <|> parseComment
            <|> parseBlank	-- this must be last, as it can match nothing
-     many space
-     eof
-     return record
+     many space >> eof >> return record
 
 parseURecord :: String -> Record
 parseURecord input =
@@ -385,12 +448,6 @@ parseURecord input =
 parseUDate :: String -> Either ParseError Date
 parseUDate input = parse parseDate "umm date" (' ' : input)
 
-parsePrefixOf :: Int -> String -> Parser String
-parsePrefixOf n str =
-  string (take n str) >> opts (drop n str) >> return str
-  where opts [] = return ()
-        opts (c:cs) = optional (char c >> opts cs)
-
 parseCmdBalance, parseCmdBasis, parseCmdChange, parseCmdPrice,
   parseCmdReconcile, parseCmdRegister, parseCmdToDo, parseCommand ::
   Date -> Parser Command
@@ -399,28 +456,24 @@ parseCmdExport, parseCmdList :: Parser Command
 parseCmdBalance now =
   do parsePrefixOf 3 "balance"
      name <- parseOptionalName
-     date <- option now (TPCP.try parseDate)
+     date <- option now parseDate
      return (BalanceCmd name date)
 
 parseCmdBasis now =
   do parsePrefixOf 3 "basis"
      name <- parseName
-     date <- option now (TPCP.try parseDate)
+     date <- option now parseDate
      return (BasisCmd name date)
 
 parseCmdExport = parsePrefixOf 1 "export" >> return ExportCmd
 
 -- TODO: make verbose/nonverbose work... somehow add optional verbosity
--- ok, this is really cheesy! make it better!
 
 parseCmdChange now =
   do parsePrefixOf 1 "change"
      name <- parseName
-     date1 <- option now parseDate
-     date2 <- option startTime parseDate
-     if date2 < date1
-        then return (ChangeCmd True name date2 date1)
-        else return (ChangeCmd False name date1 date2)
+     (date1, date2) <- parseDateRange now
+     return (ChangeCmd False name date1 date2)
 
 parseCmdList =
   do parsePrefixOf 1 "list"
@@ -443,27 +496,24 @@ parseCmdList =
 parseCmdPrice now =
   do parsePrefixOf 1 "price"
      name <- parseName
-     date <- option now (TPCP.try parseDate)
-     return (PriceCmd name date)
+     (date1, date2) <- parseDateRange now
+     return (PriceCmd name date1 date2)
 
 parseCmdReconcile now =
   do parsePrefixOf 3 "reconcile"
      name <- parseOptionalName
-     date <- option now (TPCP.try parseDate)
+     date <- option now parseDate
      return (ReconcileCmd name date)
 
 parseCmdRegister now =
   do parsePrefixOf 3 "register"
      name <- parseName
-     date1 <- option now (TPCP.try parseDate)
-     date2 <- option startTime (TPCP.try parseDate)
-     if date2 < date1
-        then return (RegisterCmd name date2 date1)
-        else return (RegisterCmd name date1 date2)
+     (date1, date2) <- parseDateRange now
+     return (RegisterCmd name date1 date2)
 
 parseCmdToDo now =
   do parsePrefixOf 1 "todo"
-     date <- option now (TPCP.try parseDate)
+     date <- option now parseDate
      return (ToDoCmd date)
 
 parseCommand date =

@@ -16,18 +16,18 @@ You should have received a copy of the GNU General Public License
 along with umm; if not, write to the Free Software Foundation, Inc.,
 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-$Id: UMMData.hs,v 1.50 2010/05/02 00:37:25 uwe Exp $ -}
+$Id: UMMData.hs,v 1.54 2010/05/09 06:24:44 uwe Exp $ -}
 
 module UMMData (Name(..), Date(..), Amount(..), startTime,
                 Command(..), CmdOpt(..), Record(..), genDate,
                 getRecDate, cmpRecDate, getRecName, cmpRecName,
                 Ledger(..), runLedger, getResult, getInfo, getErrs,
                 recordInfo, recordErr, recordNil, showExp, BSE(..),
-                Period(..), CCSAmt(..), cmpCCSAmtName, eqCCSAmtName,
-                AccountData, noName, todoName, joinDrop, roundP, isLeap,
-                validDate, julianDate, gregorianDate, offsetDate,
-                previousDate, nextDate, trimspace, mylines, mergelines,
-                uniqAdjBy, uniqAdj) where
+                SN(..), Period(..), CCSAmt(..), cmpCCSAmtName,
+                eqCCSAmtName, AccountData, noName, todoName, joinDrop,
+                roundP, isLeap, validDate, julianDate, gregorianDate,
+                offsetDate, previousDate, nextDate,
+                trimspace, mylines, mergelines, uniqAdjBy, uniqAdj) where
 import Prelude
 import Data.Char
 import Data.List
@@ -143,14 +143,15 @@ data Command = ListDataCmd CmdOpt
              | BasisCmd Name Date
              | RegisterCmd Name Date Date
              | ReconcileCmd Name Date
-             | PriceCmd Name Date
+             | PriceCmd Name Date Date
              | ChangeCmd Bool Name Date Date
              | ExportCmd
 
 instance Show Command where
   show (ListDataCmd opt) = joinDrop ["list", show opt]
   show (ToDoCmd date) = joinDrop ["todo", show date]
-  show (PriceCmd name date) = joinDrop ["price", show name, show date]
+  show (PriceCmd name date1 date2) =
+    joinDrop ["price", show name, show date1, show date2]
   show (BalanceCmd name date) = joinDrop ["balance", show name, show date]
   show (BasisCmd name date) = joinDrop ["basis", show name, show date]
   show (RegisterCmd name date1 date2) =
@@ -166,34 +167,38 @@ instance Show Command where
 -- that makes the code simple, but the user can enter "buy" or "sell",
 -- and it seems only polite to echo that back on output.
 
-data BSE = B | S | E deriving (Eq)
+data BSE = BSE_B | BSE_S | BSE_E deriving (Eq)
 
 instance Show BSE where
-  show B = "buy"
-  show S = "sell"
-  show E = "exch"
+  show BSE_B = "buy"
+  show BSE_S = "sell"
+  show BSE_E = "exch"
 
-data Period = PSW | PSM | PND Int | PNW Int | PNM Int | PNY Int deriving (Eq)
+data SN = SN_T | SN_A | SN_B deriving (Eq)
+
+instance Show SN where
+  show SN_T = "todo"
+  show SN_A = "anniversary"
+  show SN_B = "birthday"
+
+data Period = PSW | PSM | PND Int | PNM Int deriving (Eq)
 
 instance Show Period where
   show PSW = "semiweekly"		-- twice per week: N, N + 3, N + 7, ...
   show PSM = "semimonthly"		-- twice per month: N, N +- 15 days
-  show (PND n) | n == 1     = "daily"
-               | n == 7     = "weekly"
-               | n == 14    = "biweekly"
-               | otherwise  = show n ++ " days"
-  show (PNW n) | n == 1     = "weekly"
-               | n == 2     = "biweekly"
-               | otherwise  = show n ++ " weeks"
-  show (PNM n) | n == 1     = "monthly"
-               | n == 2     = "bimonthly"
-               | n == 3     = "quarterly"
-               | n == 6     = "semiannually"
-               | n == 12    = "annually"
-               | otherwise  = show n ++ " months"
-  show (PNY n) | n == 1     = "annually"
-               | n == 2     = "biannually"
-               | otherwise  = show n ++ " years"
+  show (PND n) | n == 1         = "daily"
+               | n == 7         = "weekly"
+               | n == 14        = "biweekly"
+               | mod n 7 == 0   = show (div n 7) ++ "weeks"
+               | otherwise      = show n ++ " days"
+  show (PNM n) | n == 1         = "monthly"
+               | n == 2         = "bimonthly"
+               | n == 3         = "quarterly"
+               | n == 6         = "semiannually"
+               | n == 12        = "annually"
+               | n == 24        = "biannually"
+               | mod n 12 == 0  = show (div n 12) ++ "years"
+               | otherwise      = show n ++ " months"
 
 data Record = CCSRec Name String (Maybe Amount) Name
             | IncomeRec Name String
@@ -205,9 +210,9 @@ data Record = CCSRec Name String (Maybe Amount) Name
             | ExchRec BSE Date Bool Name CCSAmt CCSAmt String
             | SplitRec Date Name Amount Amount
             | CommentRec String
-            | ToDoRec Date Bool String
             | ErrorRec String
             | RecurRec Period Date Date Record
+            | NoteRec Date Bool SN String
 
 instance Show Record where
   show = showR
@@ -247,7 +252,7 @@ showR (XferRec d r from tos m i) =
   joinDrop ["xfer", shRec r, show d, show from, showTos tos, optStr m, i]
 
 showR (ExchRec t d r a c1 c2 memo) =
-  let hs = if t == S then [show c2, show c1] else [show c1, show c2]
+  let hs = if t == BSE_S then [show c2, show c1] else [show c1, show c2]
   in joinDrop ([show t, shRec r, show d, show a] ++ hs ++ [optStr memo])
 
 showR (SplitRec d n a1 a2) =
@@ -255,8 +260,12 @@ showR (SplitRec d n a1 a2) =
 
 showR (CommentRec c) = shIf (c /= "") (joinDrop ["#", c])
 
-showR (ToDoRec d r memo) =
+showR (NoteRec d r SN_T memo) =
   joinDrop ["todo", shRec r, show d, shDef memo "something! but what?"]
+
+showR (NoteRec (Date _ m d) r t memo) =
+  joinDrop [show t, shRec r, show m ++ "/" ++ show d,
+            shDef memo "some important anniversary! but what?"]
 
 showR (ErrorRec str) = joinDrop ["#err", str]
 
@@ -291,8 +300,8 @@ showExp (PriceRec d _ (CCSAmt n1 (Amount a1)) (CCSAmt n2 (Amount a2))) =
   joinDrop ["P", show d, show n1,
             ' ' : show (CCSAmt n2 (Amount (roundP 4 (a2/a1))))]
 
-showExp (SplitRec _ _ _ _) = "# Split to be implemented"
-showExp r@(ToDoRec _ _ _)  = "# " ++ showR r
+showExp (SplitRec _ _ _ _)    = "# Split to be implemented"
+showExp r@(NoteRec _ _ _ _)   = "# " ++ showR r
 showExp r = error ("internal error at showExp! got " ++ show r)
 
 -- Get the date (or at any rate /some/ date) from a Record
@@ -303,7 +312,8 @@ getRecDate (PriceRec d _ _ _) =      d
 getRecDate (XferRec d _ _ _ _ _) =   d
 getRecDate (ExchRec _ d _ _ _ _ _) = d
 getRecDate (SplitRec d _ _ _) =      d
-getRecDate (ToDoRec d _ _) =         d
+getRecDate (NoteRec d _ SN_T _) =    d
+getRecDate (NoteRec d _ _ _) =       offsetDate d (-7)
 getRecDate (RecurRec _ _ _ r) =      getRecDate r
 getRecDate _ = startTime	-- so it works for every Record
 
@@ -476,17 +486,20 @@ mylines str = filter (/= "") (ml str)
 -- and the two lines joined. In conjunction with the trimspace aspect of
 -- mylines, above, this pretty much replicates the haskell way.
 
-isL, isF :: String -> Bool
+isL, isF, isC :: String -> Bool
 isL s = not (null s) && last s == '\\'
 isF s = not (null s) && head s == '\\'
+isC s = not (null s) && (head s == '#' || head s == ';')
 
 mergelines :: [String] -> [String]
 mergelines [] = []
 mergelines (h:[])
+  | isC h              = [h]
   | isL h || isF h     = error ("mergelines: partial line " ++ h)
   | otherwise          = [h]
 mergelines (h:t:ts)
   | isL h && isF t     = mergelines ((init h ++ tail t):ts)
+  | isC h              = h : mergelines (t:ts)
   | isL h || isF h     = error ("mergelines: partial line " ++ h)
   | otherwise          = h : mergelines (t:ts)
 
