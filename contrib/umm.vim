@@ -11,9 +11,9 @@ endif
 
 syn match ummDate   /\d\{4\}-\d\{1,2\}-\d\{1,2\}/
 syn match String    /"\([^"\\]\|\\.\)*"/
-syn match Comment   /#.*$/
+syn match Comment   /[#;].*$/
 syn match ummAmount /\<\d\+\(\.\d*\)\?\>/
-syn match Keyword   /xfer\|account\|income\|expense\|price\|ccs\|exch\|sell\|buy\|group\|todo\|split/
+syn match Keyword   /account\|anniversary\|annually\|biannually\|bimonthly\|birthday\|biweekly\|buy\|ccs\|daily\|days\|exch\|expense\|group\|income\|monthly\|months\|price\|quarterly\|reconciled\|recurring\|sell\|semiannually\|semimonthly\|semiweekly\|split\|todo\|until\|weekly\|weeks\|xfer\|years/
 syn match ummRec    /\*/
 
 hi link ummDate   Structure
