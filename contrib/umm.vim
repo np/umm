@@ -11,7 +11,7 @@ endif
 
 syn match ummDate   /\d\{4\}-\d\{1,2\}-\d\{1,2\}/
 syn region String   start=+"+ skip=+\\\\\|\\"+ end=+"+ contains=ummId,ummLabel
-syn match ummLabel  display contained "#\w\+"
+syn match ummLabel  display contained "#\(\w\|-\)\+"
 syn match ummId     display contained "[*&]\d\{4\}-\d\{2\}-\d\{2\}:-\?\d\+\(\.\d\d\?\)\?\(:[A-Z]\+\)\?"
 syn match Comment   /[#;].*$/
 syn match ummAmount /\<\d\+\(\.\d*\)\?\>/
