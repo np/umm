@@ -14,7 +14,7 @@ syn region String   start=+"+ skip=+\\\\\|\\"+ end=+"+ contains=ummId,ummLabel
 syn match ummLabel  display contained "#\(\w\|-\)\+"
 syn match ummId     display contained "[*&]\d\{4\}-\d\{2\}-\d\{2\}:-\?\d\+\(\.\d\d\?\)\?\(:[A-Z]\+\)\?"
 syn match Comment   /[#;].*$/
-syn match ummAmount /\<\d\+\(\.\d*\)\?\>/
+syn match ummAmount /\<-\?\d\+\(\.\d*\)\?\>/
 syn match Keyword   /account\|anniversary\|annually\|biannually\|bimonthly\|birthday\|biweekly\|buy\|ccs\|daily\|days\|exch\|expense\|group\|income\|monthly\|months\|price\|quarterly\|reconciled\|recurring\|sell\|semiannually\|semimonthly\|semiweekly\|split\|todo\|until\|weekly\|weeks\|xfer\|years/
 syn match ummRec    /[*!]/
 
