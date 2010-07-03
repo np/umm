@@ -16,11 +16,13 @@ syn match ummId     display contained "[*&]\d\{4\}-\d\{2\}-\d\{2\}:-\?\d\+\(\.\d
 syn match Comment   /[#;].*$/
 syn match ummAmount /\<-\?\d\+\(\.\d*\)\?\>/
 syn match Keyword   /account\|anniversary\|annually\|biannually\|bimonthly\|birthday\|biweekly\|buy\|ccs\|daily\|days\|exch\|expense\|group\|income\|monthly\|months\|price\|quarterly\|reconciled\|recurring\|sell\|semiannually\|semimonthly\|semiweekly\|split\|todo\|until\|weekly\|weeks\|xfer\|years/
-syn match ummRec    /[*!]/
+syn match ummStar   /\*/
+syn match ummBang   /!/
 
 hi link ummDate   Structure
 hi link ummAmount Number
-hi link ummRec    Identifier
+hi link ummStar   Keyword
+hi link ummBang   Identifier
 hi link ummLabel  Identifier
 hi link ummId     Type
 
