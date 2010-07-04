@@ -165,14 +165,19 @@ validateTransPrices ccs incs exps accts tps =
         chk (PriceRec _ _ (CCSAmt c1 amt1) (CCSAmt c2 _)) =
             amt1 == Amount 0 || notIn c1 ccs || notIn c2 ccs
         chk (XferRec _ _  from tos _ _) =
+            -- TODO: `from' could be an exps when others are negatives.
             (notIn from incs && notIn from accts) || any chkTo tos
         chk (ExchRec _ _ _ a (CCSAmt c1 _) (CCSAmt c2 _) _) =
             notIn a accts || notIn c1 ccs || notIn c2 ccs
         chk (NoteRec _ _ _ _) = False
         chk (RecurRec _ _ _ r) = chk r
         chk _ = True
-        chkTo (to, CCSAmt n _, _) =
-          (notIn to exps && notIn to accts) || notIn n ccs
+        chkTo (to, CCSAmt n (Amount amt), _)
+          | amt < 0   = chkFrom to n (-amt)
+          | otherwise = (notIn to exps && notIn to accts) || notIn n ccs
+        chkFrom from n amt
+          | amt < 0   = chkTo (from, CCSAmt n (Amount (-amt)), "")
+          | otherwise = (notIn from incs && notIn from accts) || notIn n ccs
         notIn _ [] = True
         notIn s (r:rs) = s /= getRecName r && notIn s rs
 
