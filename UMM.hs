@@ -127,7 +127,7 @@ ppAccts es sp =
 
 showPos :: Name -> [Record] -> Date -> [Record] ->
            AccountData -> [(Name, [String])]
-showPos dc ccs da ps as = map f1 as
+showPos dc ccs da ps as = map f1 . filter (not.null.snd) $ as
   where f1 (n1,es) = (n1, if null es then ["[empty]"] else map f2 es)
         f2 c2@(CCSAmt c2n _) =
           let sv = show c2
