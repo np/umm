@@ -196,9 +196,9 @@ doBalance :: Bool -> Date -> [Name] -> Name -> [Record] ->
 doBalance ke date names dc ccs accts trans prices =
   do final <- getBalances startTime date Nothing False accts trans
      let fsel = selAccts ke names final
-     if length names == 1 && head names == todoName
-        then putStr ""
-        else putStrLn ("Account balances as of " ++ show date) >>
+     case names of
+       [name] | name == todoName -> putStr ""
+       _ ->  putStrLn ("Account balances as of " ++ show date) >>
              mapM_ putStrLn (ppAccts (showPos dc ccs date prices fsel) 8) >>
              doGrandTotal date dc ccs fsel prices
 
