@@ -179,23 +179,28 @@ doList w dc ccs accts grps incs exps =
   where chk w1 w2 = w1 == w2 || w1 == COLAll
         sh = mapM_ print
 
+doGrandTotal :: Date -> Name -> [Record] -> AccountData -> [Record] -> IO ()
+doGrandTotal date dc ccs fsel prices =
+  putStrLn ("Grand total: ~" ++ show sp)
+  where
+    sp = filter (\e -> ccsA e /= 0) (map sumCCS gp)
+    gp = groupBy eqCCSAmtName (sortBy cmpCCSAmtName fp)
+    fp = map (\e -> reprice e dc ccs date prices) (concatMap snd fsel)
+    sumCCS cs =
+       CCSAmt (ccsN (head cs)) (Amount (roundP 2 (sum (map ccsA cs))))
+    ccsA (CCSAmt _ (Amount a)) = a
+    ccsN (CCSAmt n _) = n
+
 doBalance :: Bool -> Date -> [Name] -> Name -> [Record] ->
              [Record] -> [Record] -> [Record] -> IO ()
 doBalance ke date names dc ccs accts trans prices =
   do final <- getBalances startTime date Nothing False accts trans
      let fsel = selAccts ke names final
-         fp = map (\e -> reprice e dc ccs date prices) (concatMap snd fsel)
-         gp = groupBy eqCCSAmtName (sortBy cmpCCSAmtName fp)
-         sp = filter (\e -> ccsA e /= 0) (map sumCCS gp)
      if length names == 1 && head names == todoName
         then putStr ""
         else putStrLn ("Account balances as of " ++ show date) >>
              mapM_ putStrLn (ppAccts (showPos dc ccs date prices fsel) 8) >>
-             putStrLn ("Grand total: ~" ++ show sp)
-  where sumCCS cs =
-           CCSAmt (ccsN (head cs)) (Amount (roundP 2 (sum (map ccsA cs))))
-        ccsN (CCSAmt n _) = n
-        ccsA (CCSAmt _ (Amount a)) = a
+             doGrandTotal date dc ccs fsel prices
 
 doRegister :: Date -> Date -> Name -> Name -> [Record] ->
               [Record] -> [Record] -> [Record] -> Bool -> IO ()
