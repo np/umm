@@ -465,7 +465,14 @@ parseCmdBasis now =
      date <- option now parseDate
      return (BasisCmd name date)
 
-parseCmdExport = parsePrefixOf 1 "export" >> return ExportCmd
+parseExportFormat :: Parser ExportFormat
+parseExportFormat =  (string "json"   >> return JSONFmt)
+                 <|> (string "ledger" >> return LedgerFmt)
+
+parseCmdExport =
+  do parsePrefixOf 1 "export"
+     many space
+     ExportCmd `fmap` option LedgerFmt parseExportFormat
 
 -- TODO: make verbose/nonverbose work... somehow add optional verbosity
 

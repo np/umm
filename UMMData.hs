@@ -19,11 +19,13 @@ along with umm; if not, write to the Free Software Foundation, Inc.,
 $Id: UMMData.hs,v 1.54 2010/05/09 06:24:44 uwe Exp $ -}
 
 module UMMData (Name(..), Date(..), Amount(..), startTime,
-                Command(..), CmdOpt(..), Record(..), genDate,
+                Command(..), CmdOpt(..), Record(..),
+                ExportFormat(..), genDate,
                 getRecDate, cmpRecDate, getRecName, cmpRecName,
                 Ledger(..), runLedger, getResult, getInfo, getErrs,
                 recordInfo, recordErr, recordNil, showExp, BSE(..),
                 SN(..), Period(..), CCSAmt(..), cmpCCSAmtName,
+                jsonRecord, jsonRecords,
                 eqCCSAmtName, AccountData, noName, todoName, joinDrop,
                 roundP, isLeap, validDate, julianDate, gregorianDate,
                 offsetDate, previousDate, nextDate,
@@ -145,7 +147,11 @@ data Command = ListDataCmd CmdOpt
              | ReconcileCmd Name Date
              | PriceCmd Name Date Date
              | ChangeCmd Bool Name Date Date
-             | ExportCmd
+             | ExportCmd ExportFormat
+
+data ExportFormat = LedgerFmt
+                  | JSONFmt
+  deriving (Eq)
 
 instance Show Command where
   show (ListDataCmd opt) = joinDrop ["list", show opt]
@@ -160,7 +166,8 @@ instance Show Command where
   show (ChangeCmd verbose name date1 date2) =
     joinDrop ["change", shIf verbose "verbose",
               show name, show date1, show date2]
-  show ExportCmd = "export"
+  show (ExportCmd LedgerFmt) = "export ledger"
+  show (ExportCmd JSONFmt) = "export json"
 
 -- No, not bovine spongiform encephalitis! Disambiguate buy, sell, and
 -- exch records: internally, they are all treated as exch, because
@@ -303,6 +310,61 @@ showExp (PriceRec d _ (CCSAmt n1 (Amount a1)) (CCSAmt n2 (Amount a2))) =
 showExp (SplitRec _ _ _ _)    = "# Split to be implemented"
 showExp r@(NoteRec _ _ _ _)   = "# " ++ showR r
 showExp r = error ("internal error at showExp! got " ++ show r)
+
+jsonBool :: Bool -> ShowS
+jsonBool b = if b then ("true"++) else ("false"++)
+jsonString :: String -> ShowS
+jsonString = shows
+jsonDate :: Date -> ShowS
+jsonDate = jsonString . show
+jsonArray :: [ShowS] -> ShowS
+jsonArray xs = ('[':) . jsonConcat (intersperse (", "++) xs) . (']':)
+jsonObject xs = ('{':) . jsonConcat (intersperse (", "++) (map g xs)) . ('}':)
+  where g (x,f) = shows x . (": "++) . f
+jsonConcat = foldr (.) id
+jsonAmt :: CCSAmt -> ShowS
+jsonAmt = jsonString . show
+jsonName (Name s) = jsonString s
+jsonBSE :: BSE -> ShowS
+jsonBSE = jsonString . show
+nl :: ShowS
+nl = ('\n':)
+
+jsonRecord :: Record -> ShowS
+jsonRecord (XferRec d r from tos m i) =
+  t   "{kind: \"xfer\"" .
+  t "\n,date: "  . jsonDate d .
+  t "\n,rec: "   . jsonBool r .
+  t "\n,from: "  . jsonName from .
+  t "\n,to: "    . jsonArray (map (jsonObject . nameAmt) tos) .
+  t "\n,desc: "  . jsonString m .
+  t "\n,id: "    . jsonString i .
+  t "\n}"
+  where t s = (s++)
+        nameAmt (n,a) = [("name",jsonName n),("amount",jsonAmt a)]
+
+jsonRecord (ExchRec bse d r a c1 c2 m) =
+  t   "{kind: " . jsonArray [jsonString "exch", jsonBSE bse] .
+  t "\n,date:" . jsonDate d .
+  t "\n,rec: "   . jsonBool r .
+  t "\n,account: " . jsonName a .
+  t "\n,amounts: " . jsonArray [jsonAmt c1, jsonAmt c2] .
+  t "\n,desc: "  . jsonString m .
+  t "\n}"
+  where t s = (s++)
+
+{-
+jsonRecord (PriceRec d _ (CCSAmt n1 (Amount a1)) (CCSAmt n2 (Amount a2))) =
+  joinDrop ["P", show d, show n1,
+            ' ' : show (CCSAmt n2 (Amount (roundP 4 (a2/a1))))]
+
+jsonRecord (SplitRec _ _ _ _)    = "# Split to be implemented"
+jsonRecord r@(NoteRec _ _ _ _)   = "# " ++ showR r
+-}
+jsonRecord r = error ("internal error at jsonRecord! got " ++ show r)
+
+jsonRecords :: [Record] -> ShowS
+jsonRecords = jsonArray . map ((nl .) . (. nl) . jsonRecord)
 
 -- Get the date (or at any rate /some/ date) from a Record
 
