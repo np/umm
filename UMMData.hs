@@ -332,24 +332,25 @@ nl = ('\n':)
 
 jsonRecord :: Record -> ShowS
 jsonRecord (XferRec d r from tos m i) =
-  t   "{kind: \"xfer\"" .
-  t "\n,date: "  . jsonDate d .
-  t "\n,rec: "   . jsonBool r .
-  t "\n,from: "  . jsonName from .
-  t "\n,to: "    . jsonArray (map (jsonObject . nameAmt) tos) .
-  t "\n,desc: "  . jsonString m .
-  t "\n,id: "    . jsonString i .
+  t   "{\"kind\": \"xfer\"" .
+  t "\n,\"date\": "  . jsonDate d .
+  t "\n,\"rec\": "   . jsonBool r .
+  t "\n,\"from\": "  . jsonName from .
+  t "\n,\"to\": "    . jsonArray (map (jsonObject . nameAmtDesc) tos) .
+  t "\n,\"desc\": "  . jsonString m .
+  t "\n,\"id\": "    . jsonString i .
   t "\n}"
   where t s = (s++)
-        nameAmt (n,a) = [("name",jsonName n),("amount",jsonAmt a)]
+        nameAmtDesc (n,a,"") = [("name",jsonName n),("amount",jsonAmt a)]
+        nameAmtDesc (n,a,m)  = [("name",jsonName n),("amount",jsonAmt a),("desc",jsonString m)]
 
 jsonRecord (ExchRec bse d r a c1 c2 m) =
-  t   "{kind: " . jsonArray [jsonString "exch", jsonBSE bse] .
-  t "\n,date:" . jsonDate d .
-  t "\n,rec: "   . jsonBool r .
-  t "\n,account: " . jsonName a .
-  t "\n,amounts: " . jsonArray [jsonAmt c1, jsonAmt c2] .
-  t "\n,desc: "  . jsonString m .
+  t   "{\"kind\": "     . jsonArray [jsonString "exch", jsonBSE bse] .
+  t "\n,\"date\":"      . jsonDate d .
+  t "\n,\"rec\": "      . jsonBool r .
+  t "\n,\"account\": "  . jsonName a .
+  t "\n,\"amounts\": "  . jsonArray [jsonAmt c1, jsonAmt c2] .
+  t "\n,\"desc\": "     . jsonString m .
   t "\n}"
   where t s = (s++)
 
