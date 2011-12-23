@@ -354,7 +354,9 @@ jsonOptString x | null x    = Nothing
                 | otherwise = Just (jsonString x)
 nl :: ShowS
 nl = ('\n':)
-infix 3 +:+ +:! +:?
+infix 3 +:+
+infix 3 +:!
+infix 3 +:?
 (+:+) :: a -> b -> (a, b)
 (+:+) = (,)
 (+:!) :: a -> b -> Maybe (a, b)
