@@ -16,7 +16,7 @@ Build-Type:       Simple
 Category:         Finance
 
 Executable        umm
-  Build-Depends:  base >= 4 && < 5, haskell98, parsec, old-time, utf8-string
+  Build-Depends:  base >= 4 && < 5, parsec, old-time, utf8-string
   Main-is:        UMM.hs
   Other-Modules:  UMMData
                   UMMParser
