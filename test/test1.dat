@@ -1,0 +1,179 @@
+todo 2009-1-1 Test 1: counting in different ways
+todo 2009-1-1 Run "umm test1.dat bal 2009-m-d" for different values of m and d
+todo 2009-1-1 This exercises "xfer" transactions
+
+todo 2009-1-1 You should see N dollars in accounts 1 & 3 on the Nth day of the
+todo 2009-1-1 year, and H_n dollars in account 2 on the Nth day of the year,
+todo 2009-1-1 where H_n is the nth harmonic number: H_19 = 275295799/77597520,
+todo 2009-1-1 H_20 = 55835135/15519504. Account 1 counts up to 60 on 2009-3-1,
+todo 2009-1-1 account 2 counts up to H_30 on 2009-1-30, and account 3 counts
+todo 2009-1-1 up to 365 on 2009-12-31. In account 4, start with 1/3 dollar,
+todo 2009-1-1 then add powers of 10 for a while, then subtract them again;
+todo 2009-1-1 should again end up with 1/3
+
+ccs $
+income in
+expense out
+
+account count1 "manually count $"
+account count2 "harmonic numbers"
+account count3 "automatically count $"
+account count4 "check bignums"
+
+xfer 2009-1-1 in count1 1
+xfer 2009-1-2 in count1 1
+xfer 2009-1-3 in count1 1
+xfer 2009-1-4 in count1 1
+xfer 2009-1-5 in count1 1
+xfer 2009-1-6 in count1 1
+xfer 2009-1-7 in count1 1
+xfer 2009-1-8 in count1 1
+xfer 2009-1-9 in count1 1
+xfer 2009-1-10 in count1 1
+xfer 2009-1-11 in count1 1
+xfer 2009-1-12 in count1 1
+xfer 2009-1-13 in count1 1
+xfer 2009-1-14 in count1 1
+xfer 2009-1-15 in count1 1
+xfer 2009-1-16 in count1 1
+xfer 2009-1-17 in count1 1
+xfer 2009-1-18 in count1 1
+xfer 2009-1-19 in count1 1
+xfer 2009-1-20 in count1 1
+xfer 2009-1-21 in count1 1
+xfer 2009-1-22 in count1 1
+xfer 2009-1-23 in count1 1
+xfer 2009-1-24 in count1 1
+xfer 2009-1-25 in count1 1
+xfer 2009-1-26 in count1 1
+xfer 2009-1-27 in count1 1
+xfer 2009-1-28 in count1 1
+xfer 2009-1-29 in count1 1
+xfer 2009-1-30 in count1 1
+xfer 2009-1-31 in count1 1
+xfer 2009-2-1 in count1 1
+xfer 2009-2-2 in count1 1
+xfer 2009-2-3 in count1 1
+xfer 2009-2-4 in count1 1
+xfer 2009-2-5 in count1 1
+xfer 2009-2-6 in count1 1
+xfer 2009-2-7 in count1 1
+xfer 2009-2-8 in count1 1
+xfer 2009-2-9 in count1 1
+xfer 2009-2-10 in count1 1
+xfer 2009-2-11 in count1 1
+xfer 2009-2-12 in count1 1
+xfer 2009-2-13 in count1 1
+xfer 2009-2-14 in count1 1
+xfer 2009-2-15 in count1 1
+xfer 2009-2-16 in count1 1
+xfer 2009-2-17 in count1 1
+xfer 2009-2-18 in count1 1
+xfer 2009-2-19 in count1 1
+xfer 2009-2-20 in count1 1
+xfer 2009-2-21 in count1 1
+xfer 2009-2-22 in count1 1
+xfer 2009-2-23 in count1 1
+xfer 2009-2-24 in count1 1
+xfer 2009-2-25 in count1 1
+xfer 2009-2-26 in count1 1
+xfer 2009-2-27 in count1 1
+xfer 2009-2-28 in count1 1
+xfer 2009-3-1 in count1 1
+
+xfer 2009-1-1 in count2 1/1
+xfer 2009-1-2 in count2 1/2
+xfer 2009-1-3 in count2 1/3
+xfer 2009-1-4 in count2 1/4
+xfer 2009-1-5 in count2 1/5
+xfer 2009-1-6 in count2 1/6
+xfer 2009-1-7 in count2 1/7
+xfer 2009-1-8 in count2 1/8
+xfer 2009-1-9 in count2 1/9
+xfer 2009-1-10 in count2 1/10
+xfer 2009-1-11 in count2 1/11
+xfer 2009-1-12 in count2 1/12
+xfer 2009-1-13 in count2 1/13
+xfer 2009-1-14 in count2 1/14
+xfer 2009-1-15 in count2 1/15
+xfer 2009-1-16 in count2 1/16
+xfer 2009-1-17 in count2 1/17
+xfer 2009-1-18 in count2 1/18
+xfer 2009-1-19 in count2 1/19
+xfer 2009-1-20 in count2 1/20
+xfer 2009-1-21 in count2 1/21
+xfer 2009-1-22 in count2 1/22
+xfer 2009-1-23 in count2 1/23
+xfer 2009-1-24 in count2 1/24
+xfer 2009-1-25 in count2 1/25
+xfer 2009-1-26 in count2 1/26
+xfer 2009-1-27 in count2 1/27
+xfer 2009-1-28 in count2 1/28
+xfer 2009-1-29 in count2 1/29
+xfer 2009-1-30 in count2 1/30
+
+recurring daily until 2009-12-31 xfer 2009-1-1 in count3 1
+
+xfer 2009-1-1 in count4  1/3
+xfer 2009-1-1 in count4  1
+xfer 2009-1-2 in count4  10
+xfer 2009-1-3 in count4  100
+xfer 2009-1-4 in count4  1000
+xfer 2009-1-5 in count4  10000
+xfer 2009-1-6 in count4  100000
+xfer 2009-1-7 in count4  1000000
+xfer 2009-1-8 in count4  10000000
+xfer 2009-1-9 in count4  100000000
+xfer 2009-1-10 in count4 1000000000
+xfer 2009-1-11 in count4 10000000000
+xfer 2009-1-12 in count4 100000000000
+xfer 2009-1-13 in count4 1000000000000
+xfer 2009-1-14 in count4 10000000000000
+xfer 2009-1-15 in count4 100000000000000
+xfer 2009-1-16 in count4 1000000000000000
+xfer 2009-1-17 in count4 10000000000000000
+xfer 2009-1-18 in count4 100000000000000000
+xfer 2009-1-19 in count4 1000000000000000000
+xfer 2009-1-20 in count4 10000000000000000000
+xfer 2009-1-21 in count4 100000000000000000000
+xfer 2009-1-22 in count4 1000000000000000000000
+xfer 2009-1-23 in count4 10000000000000000000000
+xfer 2009-1-24 in count4 100000000000000000000000
+xfer 2009-1-25 in count4 1000000000000000000000000
+xfer 2009-1-26 in count4 10000000000000000000000000
+xfer 2009-1-27 in count4 100000000000000000000000000
+xfer 2009-1-28 in count4 1000000000000000000000000000
+xfer 2009-1-29 in count4 10000000000000000000000000000
+xfer 2009-1-30 in count4 100000000000000000000000000000
+xfer 2009-1-31 in count4 1000000000000000000000000000000
+xfer 2009-2-1 count4 out  1
+xfer 2009-2-2 count4 out  100
+xfer 2009-2-3 count4 out  10000
+xfer 2009-2-4 count4 out  1000000
+xfer 2009-2-5 count4 out  100000000
+xfer 2009-2-6 count4 out  10000000000
+xfer 2009-2-7 count4 out  1000000000000
+xfer 2009-2-8 count4 out  100000000000000
+xfer 2009-2-9 count4 out  10000000000000000
+xfer 2009-2-10 count4 out 1000000000000000000
+xfer 2009-2-11 count4 out 100000000000000000000
+xfer 2009-2-12 count4 out 10000000000000000000000
+xfer 2009-2-13 count4 out 1000000000000000000000000
+xfer 2009-2-14 count4 out 100000000000000000000000000
+xfer 2009-2-15 count4 out 10000000000000000000000000000
+xfer 2009-2-16 count4 out 1000000000000000000000000000000
+xfer 2009-2-17 count4 out 100000000000000000000000000000
+xfer 2009-2-18 count4 out 1000000000000000000000000000
+xfer 2009-2-19 count4 out 10000000000000000000000000
+xfer 2009-2-20 count4 out 100000000000000000000000
+xfer 2009-2-21 count4 out 1000000000000000000000
+xfer 2009-2-22 count4 out 10000000000000000000
+xfer 2009-2-23 count4 out 100000000000000000
+xfer 2009-2-24 count4 out 1000000000000000
+xfer 2009-2-25 count4 out 10000000000000
+xfer 2009-2-26 count4 out 100000000000
+xfer 2009-2-27 count4 out 1000000000
+xfer 2009-2-28 count4 out 10000000
+xfer 2009-3-1 count4 out  100000
+xfer 2009-3-2 count4 out  1000
+xfer 2009-3-3 count4 out  10

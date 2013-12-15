@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License
 along with umm; if not, write to the Free Software Foundation, Inc.,
 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-$Id: UMMData.hs,v 1.54 2010/05/09 06:24:44 uwe Exp $ -}
+$Id: UMMData.hs,v 1.57 2010/07/06 03:12:08 uwe Exp $ -}
 
 module UMMData (Name(..), Date(..), Amount(..), startTime,
                 Command(..), CmdOpt(..), Record(..), genDate,
@@ -26,8 +26,9 @@ module UMMData (Name(..), Date(..), Amount(..), startTime,
                 SN(..), Period(..), CCSAmt(..), cmpCCSAmtName,
                 eqCCSAmtName, AccountData, noName, todoName, joinDrop,
                 roundP, isLeap, validDate, julianDate, gregorianDate,
-                offsetDate, previousDate, nextDate,
-                trimspace, mylines, mergelines, uniqAdjBy, uniqAdj) where
+                offsetDate, previousDate, nextDate, julianDateToWDay,
+                gregorianDateToWDay, trimspace, mylines, mergelines,
+                uniqAdjBy, uniqAdj) where
 import Prelude
 import Data.Char
 import Data.List
@@ -119,7 +120,7 @@ eqCCSAmtName (CCSAmt n1 _) (CCSAmt n2 _) = n1 == n2
 -- All accounts: an array of tuples of names and amounts
 -- TODO: make this a newtype?
 
-type AccountData = [(Name, [CCSAmt])]
+type AccountData = [(Name, Bool, [CCSAmt])]
 
 data CmdOpt = COLAll
             | COLCCS
@@ -146,6 +147,7 @@ data Command = ListDataCmd CmdOpt
              | PriceCmd Name Date Date
              | ChangeCmd Bool Name Date Date
              | ExportCmd
+             | PlotCmd Name Date Date Name
 
 instance Show Command where
   show (ListDataCmd opt) = joinDrop ["list", show opt]
@@ -161,6 +163,8 @@ instance Show Command where
     joinDrop ["change", shIf verbose "verbose",
               show name, show date1, show date2]
   show ExportCmd = "export"
+  show (PlotCmd name date1 date2 output) =
+    joinDrop ["plot", show name, show date1, show date2, show output]
 
 -- No, not bovine spongiform encephalitis! Disambiguate buy, sell, and
 -- exch records: internally, they are all treated as exch, because
@@ -203,7 +207,7 @@ instance Show Period where
 data Record = CCSRec Name String (Maybe Amount) Name
             | IncomeRec Name String
             | ExpenseRec Name String
-            | AccountRec Name Date String (Maybe CCSAmt)
+            | AccountRec Name Date Bool String (Maybe CCSAmt)
             | GroupRec Name [Name]
             | PriceRec Date Bool CCSAmt CCSAmt
             | XferRec Date Bool Name [(Name, CCSAmt)] String String
@@ -242,8 +246,8 @@ showR (CCSRec n d ma nb) =
   joinDrop ["ccs", show n, optStr d, shM ma, show nb]
 showR (IncomeRec n d) = joinDrop ["income", show n, optStr d]
 showR (ExpenseRec n d) = joinDrop ["expense", show n, optStr d]
-showR (AccountRec n da de mi) =
-  joinDrop ["account", show n, show da, optStr de, shM mi]
+showR (AccountRec n da r de mi) =
+  joinDrop ["account", shRec r, show n, show da, optStr de, shM mi]
 showR (GroupRec n as) = joinDrop (["group", show n] ++ map show as)
 showR (PriceRec d imp c1 c2) =
   joinDrop [shIf imp "[", "price", show d, show c1, show c2, shIf imp "]"]
@@ -307,7 +311,7 @@ showExp r = error ("internal error at showExp! got " ++ show r)
 -- Get the date (or at any rate /some/ date) from a Record
 
 getRecDate :: Record -> Date
-getRecDate (AccountRec _ d _ _) =    d
+getRecDate (AccountRec _ d _ _ _) =  d
 getRecDate (PriceRec d _ _ _) =      d
 getRecDate (XferRec d _ _ _ _ _) =   d
 getRecDate (ExchRec _ d _ _ _ _ _) = d
@@ -320,11 +324,11 @@ getRecDate _ = startTime	-- so it works for every Record
 -- Get the name (or at any rate /some/ name) from a Record
 
 getRecName :: Record -> Name
-getRecName (CCSRec n _ _ _) =     n
-getRecName (IncomeRec n _) =      n
-getRecName (ExpenseRec n _) =     n
-getRecName (AccountRec n _ _ _) = n
-getRecName (GroupRec n _) =       n
+getRecName (CCSRec n _ _ _) =       n
+getRecName (IncomeRec n _) =        n
+getRecName (ExpenseRec n _) =       n
+getRecName (AccountRec n _ _ _ _) = n
+getRecName (GroupRec n _) =         n
 getRecName _ = nilName		-- so it works for every Record
 
 -- Compare two Records
@@ -462,6 +466,25 @@ offsetDate d n = gregorianDate (n + julianDate d)
 previousDate, nextDate :: Date -> Date
 previousDate d = offsetDate d (-1)
 nextDate d = offsetDate d 1
+
+-- Utility functions to get the day of the week
+-- from either a Julian or a Gregorian date
+
+julianDateToWDay :: Int -> String
+julianDateToWDay jd =
+  let jm = mod (jd + 1) 7
+  in case jm of
+       0 -> "Sun"
+       1 -> "Mon"
+       2 -> "Tue"
+       3 -> "Wed"
+       4 -> "Thu"
+       5 -> "Fri"
+       6 -> "Sat"
+       _ -> error ("internal error at julianDateToWDay! got " ++ show jm)
+
+gregorianDateToWDay :: Date -> String
+gregorianDateToWDay = julianDateToWDay . julianDate
 
 -- Remove leading and trailing whitespace from a string.
 

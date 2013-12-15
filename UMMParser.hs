@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License
 along with umm; if not, write to the Free Software Foundation, Inc.,
 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-$Id: UMMParser.hs,v 1.47 2010/05/09 06:24:44 uwe Exp $ -}
+$Id: UMMParser.hs,v 1.52 2010/07/27 04:09:05 uwe Exp $ -}
 
 -- TODO: template := <to be determined>
 
@@ -45,7 +45,8 @@ readAmt ip fp =
 
 -- Parse a string, recognizing the whole string even if only a partial
 -- prefix of it is given: the size of the minimal acceptable prefix has
--- to be specified to the parser
+-- to be specified to the parser; and if the minimal acceptable prefix
+-- isn't unique, bad things happen
 
 parsePrefixOf :: Int -> String -> Parser String
 parsePrefixOf n str =
@@ -329,11 +330,12 @@ parseIE =
 
 parseAccount =
   do string "account"
+     rec <- parseReconcile
      name <- parseName
      date <- option startTime (TPCP.try parseDate)
      desc <- parseOptionalString
      ival <- option Nothing (TPCP.try (parseCCSAmt >>= return . Just))
-     return (AccountRec name date desc ival)
+     return (AccountRec name date rec desc ival)
 
 parseGroup =
   do string "group"
@@ -418,7 +420,7 @@ parseRecur =
      dr <- option startTime
                   (TPCP.try (parsePrefixOf 3 "reconciled" >> parseDate))
      many space
-     record <- parseEBS <|> parseXfer
+     record <- TPCP.try parseEBS <|> parseXfer <|> parseTBA
      return (RecurRec period dl dr record)
 
 parseBlank = many space >> return (CommentRec "")
@@ -448,7 +450,7 @@ parseURecord input =
 parseUDate :: String -> Either ParseError Date
 parseUDate input = parse parseDate "umm date" (' ' : input)
 
-parseCmdBalance, parseCmdBasis, parseCmdChange, parseCmdPrice,
+parseCmdBalance, parseCmdBasis, parseCmdChange, parseCmdPlot, parseCmdPrice,
   parseCmdReconcile, parseCmdRegister, parseCmdToDo, parseCommand ::
   Date -> Parser Command
 parseCmdExport, parseCmdList :: Parser Command
@@ -493,8 +495,15 @@ parseCmdList =
                             "expenses" -> COLExps
                             _ -> intErr "parseListCmd"))
 
+parseCmdPlot now =
+  do parsePrefixOf 2 "plot"
+     name <- parseName
+     (date1, date2) <- parseDateRange now
+     output <- option (Name "umm_plot") parseName
+     return (PlotCmd name date1 date2 output)
+
 parseCmdPrice now =
-  do parsePrefixOf 1 "price"
+  do parsePrefixOf 2 "price"
      name <- parseName
      (date1, date2) <- parseDateRange now
      return (PriceCmd name date1 date2)
@@ -520,6 +529,7 @@ parseCommand date =
   do cmd <- parseCmdChange date
         <|> parseCmdExport
         <|> parseCmdList
+        <|> TPCP.try (parseCmdPlot date)
         <|> parseCmdPrice date
         <|> parseCmdToDo date
         <|> TPCP.try (parseCmdBalance date)

@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License
 along with umm; if not, write to the Free Software Foundation, Inc.,
 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-$Id: UMM.hs,v 1.61 2010/05/09 06:24:43 uwe Exp $ -}
+$Id: UMM.hs,v 1.73 2010/08/08 19:17:14 uwe Exp $ -}
 
 module Main where
 import Prelude hiding (putStr,putStrLn,print,readFile,getContents)
@@ -128,7 +128,7 @@ ppAccts es sp =
 showPos :: Name -> [Record] -> Date -> [Record] ->
            AccountData -> [(Name, [String])]
 showPos dc ccs da ps as = map f1 as
-  where f1 (n1,es) = (n1, if null es then ["[empty]"] else map f2 es)
+  where f1 (n1,_,es) = (n1, if null es then ["[empty]"] else map f2 es)
         f2 c2@(CCSAmt c2n _) =
           let sv = show c2
               ep = equivPrice c2 (getBaseCurrency c2n dc ccs) da ps
@@ -142,9 +142,13 @@ showPos dc ccs da ps as = map f1 as
 
 selAccts :: Bool -> [Name] -> AccountData -> AccountData
 selAccts keep names accs = f2 (f1 accs)
-  where f0 = filter (\a -> elem (fst a) names)
+  where f0 = filter (\a -> elem (tr1 a) names)
         f1 = if length names == 1 && head names == noName then id else f0
-        f2 = if keep then id else filter (not . null . snd)
+        f2 = filter (\a -> (if keep then not . tr2 else const False) a ||
+                           not (null (tr3 a)))
+        tr1 (v,_,_) = v
+        tr2 (_,v,_) = v
+        tr3 (_,_,v) = v
 
 -- Turn an account-group into a list of accounts. An account-group can
 -- contain (names of) other account-groups, including recursively, and
@@ -179,41 +183,48 @@ doList w dc ccs accts grps incs exps =
   where chk w1 w2 = w1 == w2 || w1 == COLAll
         sh = mapM_ print
 
-doBalance :: Bool -> Date -> [Name] -> Name -> [Record] ->
-             [Record] -> [Record] -> [Record] -> IO ()
-doBalance ke date names dc ccs accts trans prices =
-  do final <- getBalances startTime date Nothing False accts trans
-     let fsel = selAccts ke names final
-         fp = map (\e -> reprice e dc ccs date prices) (concatMap snd fsel)
-         gp = groupBy eqCCSAmtName (sortBy cmpCCSAmtName fp)
-         sp = filter (\e -> ccsA e /= 0) (map sumCCS gp)
-     if length names == 1 && head names == todoName
-        then putStr ""
-        else putStrLn ("Account balances as of " ++ show date) >>
-             mapM_ putStrLn (ppAccts (showPos dc ccs date prices fsel) 8) >>
-             putStrLn ("Grand total: ~" ++ show sp)
+-- Generate the sum of a list of amounts, translating them
+-- into the default ccs to the extent possible
+
+genSum :: Name -> [Record] -> [Record] -> Date -> [CCSAmt] -> [CCSAmt]
+genSum dc ccs prices date vs =
+  let fp = map (\e -> reprice e dc ccs date prices) vs
+      gp = groupBy eqCCSAmtName (sortBy cmpCCSAmtName fp)
+  in filter (\e -> ccsA e /= 0) (map sumCCS gp)
   where sumCCS cs =
            CCSAmt (ccsN (head cs)) (Amount (roundP 2 (sum (map ccsA cs))))
         ccsN (CCSAmt n _) = n
         ccsA (CCSAmt _ (Amount a)) = a
 
-doRegister :: Date -> Date -> Name -> Name -> [Record] ->
+doBalance :: Bool -> Date -> [Name] -> Name -> [Record] ->
+             [Record] -> [Record] -> [Record] -> IO ()
+doBalance ke date names dc ccs accts trans prices =
+  do final <- getBalances startTime date Nothing False accts trans
+     let fsel = selAccts ke names final
+         sp = genSum dc ccs prices date (concatMap tr3 fsel)
+     putStrLn ("Account balances as of " ++ gregorianDateToWDay date
+              ++ " " ++ show date)
+     mapM_ putStrLn (ppAccts (showPos dc ccs date prices fsel) 8)
+     putStrLn ("Grand total: ~" ++ show sp)
+  where tr3 (_,_,v) = v
+
+doRegister :: Date -> Date -> [Name] -> Name -> [Record] ->
               [Record] -> [Record] -> [Record] -> Bool -> IO ()
-doRegister d1 d2 name dc ccs accts trans prices dorec =
-  do final <- getBalances d1 d2 (Just name) dorec accts trans
+doRegister d1 d2 names dc ccs accts trans prices dorec =
+  do final <- getBalances d1 d2 (Just names) dorec accts trans
      putStrLn ((if dorec then "Reconciled" else "Account")
                ++ " balance as of " ++ show d2)
      mapM_ putStrLn (ppAccts (showPos dc ccs d2 prices
-                                      (selAccts True [name] final)) 8)
+                                      (selAccts True names final)) 8)
 
 doChange :: Bool -> Date -> Date -> Name -> Name ->
             [Record] -> [Record] -> [Record] -> IO ()
 doChange verbose d1 d2 name dc ccs accts trans =
   do let aux = if notElem name (map getRecName accts)
-                  then [AccountRec name d1 "" Nothing]
+                  then [AccountRec name d1 False "" Nothing]
                   else []
          trs = dropWhile (\t -> getRecDate t <= d1) trans
-         mn = if verbose then Just name else Nothing
+         mn = if verbose then Just [name] else Nothing
      final <- getBalances d1 d2 mn False (aux ++ accts) trs
      putStr "Change"
      when (d1 /= startTime) (putStr (" from " ++ show d1))
@@ -245,32 +256,52 @@ main =
          trans = mergeTrans tr1 tr2
          pr2 = generateImplicitPrices dc trans cd
          prices = mergePrices (reverse pr1) pr2
+         egrp = expandGroup accts grps
          pse r = putStrLn (showExp r) >> putStrLn ""
      case action of
        ChangeCmd verbose name date1 date2 ->
          doChange verbose date1 date2 name dc ccs accts trans
        BalanceCmd name date ->
-         doBalance True date (expandGroup accts grps name)
-                   dc ccs accts trans prices
+         doBalance True date (egrp name) dc ccs accts trans prices
        BasisCmd name date ->
          doBalance False date [noName] dc ccs accts
                    (filter (hasCur name) trans) []
        ExportCmd -> mapM_ pse trans >> mapM_ pse (reverse prices)
        ListDataCmd w ->
          doList w dc ccs accts grps incs exps
+       PlotCmd name date1 date2 (Name output) ->
+         let crec = find (\r -> getRecName r == name) cd
+             gs = genSum1 dc ccs prices
+             auxa = AccountRec name date1 False "" Nothing
+             auxt1 = dropWhile (\t -> getRecDate t <= date1) trans
+             auxt2 = mergeTrans trans (reverse prices)
+         in if elem name (map getRecName cb)
+               then putStrLn (show name ++ " is a base CCS!")
+               else if isNothing crec
+                       then if elem name (map getRecName (incs ++ exps))
+                               then plotBalances date1 date2 name [name]
+                                                 (auxa : accts) auxt1 output gs
+                               else plotBalances date1 date2 name (egrp name)
+                                                 accts auxt2 output gs
+                       else plotPrices name (getNB (fromJust crec))
+                                       date1 date2 prices output
        PriceCmd name date1 date2 ->
-         if elem name (map getRecName cb)
-            then putStrLn (show name ++ " is a base CCS!")
-            else let crec = find (\r -> getRecName r == name) cd
-                 in if isNothing crec
+         let crec = find (\r -> getRecName r == name) cd
+         in if elem name (map getRecName cb)
+               then putStrLn (show name ++ " is a base CCS!")
+               else if isNothing crec
                        then putStrLn ("Error! unknown CCS " ++ show name)
                        else getPrices name (getNB (fromJust crec))
                                       date1 date2 prices
        RegisterCmd name date1 date2 ->
-         doRegister date1 date2 name dc ccs accts trans prices False
+         doRegister date1 date2 (egrp name) dc ccs accts trans prices False
        ReconcileCmd name date ->
-         doRegister startTime date name dc ccs accts trans prices True
+         doRegister startTime date (egrp name) dc ccs accts trans prices True
        ToDoCmd date ->
-         doBalance True date [todoName] dc ccs accts trans prices
+         getBalances startTime date Nothing False accts trans >> return ()
   where getNB (CCSRec _ _ _ nb) = nb
         getNB r = error ("internal error at main! got " ++ show r)
+        genSum1 dc ccs prices (r,bs) =
+          let date = getRecDate r
+          in (date, map ccsA (genSum dc ccs prices date bs))
+        ccsA (CCSAmt _ a) = a

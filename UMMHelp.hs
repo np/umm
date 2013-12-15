@@ -16,13 +16,13 @@ You should have received a copy of the GNU General Public License
 along with umm; if not, write to the Free Software Foundation, Inc.,
 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-$Id: help-head.txt,v 1.2 2010/05/10 04:33:16 uwe Exp $ -}
+$Id: help-head.txt,v 1.7 2010/07/25 19:18:22 uwe Exp $ -}
 
 module UMMHelp (writeHdr, usageMsg) where
 import Prelude
 
 version :: String
-version = "0.2.1"
+version = "0.3.1"
 
 writeHdr :: String
 writeHdr =
@@ -39,9 +39,10 @@ usageMsg prog =
   "    'balance' [account-or-group] [date]\n" ++
   "    'change' acc-or-inc-or-exp [date-range]\n" ++
   "    'list' ['all' | 'accounts' | 'ccs' | 'expenses' | 'incomes' | 'groups']\n" ++
+  "    'plot' account-or-group-or-ccs [date-range] [output-template]\n" ++
   "    'price' ccs [date-range]\n" ++
-  "    'register' account [date-range]\n" ++
-  "    'reconcile' [account] [date]\n" ++
+  "    'register' account-or-group [date-range]\n" ++
+  "    'reconcile' [account-or-group] [date]\n" ++
   "    'todo' [date]\n" ++
   "    'basis' ccs [date]\n" ++
   "    'export'\n" ++
@@ -73,28 +74,32 @@ usageMsg prog =
   "* 'change' shows the change in the specified account or pseudo-account\n" ++
   "  in the given date range.\n" ++
   "\n" ++
+  "* 'plot' generates a plot of the price history of the specified\n" ++
+  "  currency, commodity, or security, or of the value of the specified\n" ++
+  "  account or account group, in the given date range.\n" ++
+  "\n" ++
   "* 'price' shows the price history of the specified currency,\n" ++
-  "  commodity, or security, in the given date range\n" ++
+  "  commodity, or security, in the given date range.\n" ++
   "\n" ++
   "* 'register' shows all transactions involving the specified\n" ++
-  "  account in the given date range, and shows the balance as of\n" ++
-  "  the end of that date range.\n" ++
+  "  account or account group in the given date range, and shows\n" ++
+  "  the balance as of the end of that date range.\n" ++
   "\n" ++
   "* 'reconcile' applies all reconciled transactions up to the\n" ++
   "  given date, shows relevant unreconciled transactions up to\n" ++
   "  that date, and shows the reconciled balance(s) as of that\n" ++
   "  date.\n" ++
   "\n" ++
-  "  If 'reconcile' is given an account, then only unreconciled\n" ++
-  "  transactions involving that account are shown, otherwise all\n" ++
-  "  unreconciled transactions are shown\n" ++
+  "  If 'reconcile' is given an account or account group, then only\n" ++
+  "  unreconciled transactions involving that account or account group\n" ++
+  "  are shown, otherwise all unreconciled transactions are shown.\n" ++
   "\n" ++
   "* 'todo' shows all the unreconciled 'todo' items in the ledger\n" ++
-  "  up to the date specified, defaulting to the current date\n" ++
+  "  up to the date specified, defaulting to the current date.\n" ++
   "\n" ++
   "* 'list' shows summaries of the various kinds of non-transaction\n" ++
   "  entries in the ledger file: currencies/commodities/securities,\n" ++
-  "  income and expense categories, accounts, and groups\n" ++
+  "  income and expense categories, accounts, and groups.\n" ++
   "\n" ++
   "* 'basis' shows the cost basis for a given currency or commodity\n" ++
   "  or security.\n" ++
@@ -109,11 +114,11 @@ usageMsg prog =
   "    'ccs' name [desc] [amount] [name]\n" ++
   "    'income' name [desc]\n" ++
   "    'expense' name [desc]\n" ++
-  "    'account' name [date] [desc]\n" ++
+  "    'account' [rec] name [date] [desc]\n" ++
   "    'group' name [name...]\n" ++
   "    'price' date [amount1] name1 amount2 [name2]\n" ++
   "    'split' date name amount1 amount2\n" ++
-  "    'todo' [rec] date text\n" ++
+  "    [period] 'todo' [rec] date text\n" ++
   "    [period] 'xfer' [rec] date name1 name2 amount [name] [desc] [id]\n" ++
   "    [period] 'xfer' [rec] date name1 {name2 amount [name],\\\n" ++
   "        \\ name3 amount [name], ...} [desc] [id]\n" ++
@@ -132,7 +137,8 @@ usageMsg prog =
   "records, and an empty ledger file is syntactically legal. However, a\n" ++
   "minimally-useful ledger file will probably contain at least some\n" ++
   "'xfer' records, which in turn require that there be at least a couple\n" ++
-  "of 'account' or 'income' or 'expense' records.\n" ++
+  "of 'account' or 'income' or 'expense' records; or possibly some 'todo'\n" ++
+  "records.\n" ++
   "\n" ++
   "The order of records in the ledger file is not significant; the\n" ++
   "program orders them by type and date, and applies transactions in\n" ++
@@ -148,7 +154,7 @@ usageMsg prog =
   "* 'ccs name [desc] [amount] [name]' describes a currency or commodity\n" ++
   "  or security: the things you want to keep track of. The first ccs\n" ++
   "  record in the ledger file is the default unit; my ledger file has\n" ++
-  "  'ccs US$' very near the top. However, you don't need one, in which\n" ++
+  "  'ccs $' very near the top. However, you don't need one, in which\n" ++
   "  case the program computes in Zorkmid ('zm'). If you don't enter any\n" ++
   "  'ccs' record, you can't specify any units in 'xfer' records, and you\n" ++
   "  can't use any 'price' or 'split' records. You can use 'exch' (and\n" ++
@@ -161,13 +167,16 @@ usageMsg prog =
   "  specified. If present, the second 'name' is also the ccs into which\n" ++
   "  this ccs is translated.\n" ++
   "\n" ++
-  "* 'account name [date] [desc]' records specify accounts where you\n" ++
-  "  want to keep of the quantity of what's in the account as well as\n" ++
-  "  transactions which move stuff into or out of the account. An\n" ++
+  "* 'account [rec] name [date] [desc]' records specify accounts where\n" ++
+  "  you want to keep of the quantity of what's in the account as well\n" ++
+  "  as transactions which move stuff into or out of the account. An\n" ++
   "  account can contain multiple types of ccs, for example a single\n" ++
   "  account could be used to describe a brokerage account containing\n" ++
   "  many securities as well as cash. The date and desc fields are\n" ++
   "  currently just for documentation and are not used by the program.\n" ++
+  "  The optional \"rec\" mark in this case indicates that the account\n" ++
+  "  is to be hidden, unless it contains something. This is to indicate\n" ++
+  "  accounts which have been closed.\n" ++
   "\n" ++
   "* 'group name [name...]' groups multiple accounts together into one\n" ++
   "  group, so that it's possible to query the balances for a group of\n" ++
@@ -189,15 +198,15 @@ usageMsg prog =
   "  specify the price of one ccs in terms of another; usually a\n" ++
   "  currency. If the first amount is not specified, it defaults to 1,\n" ++
   "  and if the second name is not specified, it defaults to the default\n" ++
-  "  ccs. For example, if you are tracking ounces of gold using the ccs\n" ++
-  "  name 'Au', you might have a price record\n" ++
+  "  ccs. For example, if you are tracking troy ounces of gold using the\n" ++
+  "  ccs name 'Au', you might have a price record\n" ++
   "\n" ++
   "        price 2009-10-21 Au 1063.70\n" ++
   "\n" ++
   "  and if you track ounces but for some reason have a price quote in\n" ++
   "  grams, you might write\n" ++
   "\n" ++
-  "        price 2009-10-21 0.03215075 Au 34.19875 US$\n" ++
+  "        price 2009-10-21 0.03215075 Au 34.19875 $\n" ++
   "\n" ++
   "  'name1' (and 'name2', if specified) must be specified in the ledger\n" ++
   "  by 'ccs' records.\n" ++
@@ -223,7 +232,7 @@ usageMsg prog =
   "  to account 'name2'; 'name1' may be either an account specified by an\n" ++
   "  'account' record, or a source specified by an 'income' record. If\n" ++
   "  you don't specify the name of what's being transferred, the program\n" ++
-  "  assumes it's the default ccs, US$ or Zorkmids or whatever. For\n" ++
+  "  assumes it's the default ccs, $ or Zorkmids or whatever. For\n" ++
   "  example, this record from my ledger file\n" ++
   "\n" ++
   "        xfer* 2009/2/27 interest abc:savings 0.01\n" ++
@@ -233,7 +242,7 @@ usageMsg prog =
   "\n" ++
   "        xfer* 2009/9/26 checking utility:water 43.99 1216\n" ++
   "\n" ++
-  "  is the payment of my water bill, in the amount of US$ 43.99, with\n" ++
+  "  is the payment of my water bill, in the amount of $ 43.99, with\n" ++
   "  check #1216.\n" ++
   "\n" ++
   "  Both of these are marked as reconciled; this affects only the\n" ++
@@ -275,26 +284,28 @@ usageMsg prog =
   "\n" ++
   "  would undo the previous 'buy' transaction. These could both be\n" ++
   "  written as 'exch' instead, as follows; I've added the explicit\n" ++
-  "  specifier of US$.\n" ++
+  "  specifier of $.\n" ++
   "\n" ++
-  "        exch 2009/10/2 brokerage 3.959 VTSMX 100 US$\n" ++
-  "        exch 2009/10/2 brokerage 100 US$ 3.959 VTSMX\n" ++
+  "        exch 2009/10/2 brokerage 3.959 VTSMX 100 $\n" ++
+  "        exch 2009/10/2 brokerage 100 $ 3.959 VTSMX\n" ++
   "\n" ++
   "  Again, for details on the optional [period] prefix, see below.\n" ++
   "\n" ++
-  "* 'todo [rec] date text' is basically a sticky note in the ledger. If\n" ++
-  "  the record is not marked as reconciled, and the date falls within\n" ++
-  "  the range of the command being executed, the text is printed out. If\n" ++
-  "  the record is marked as reconciled, the text is not printed out; the\n" ++
-  "  record merely serves as a comment in the ledger. This is for leaving\n" ++
-  "  yourself reminders of stuff that needs to be done at some time: for\n" ++
-  "  example, my ledger file has entries\n" ++
+  "* '[period] todo [rec] date text' is basically a sticky note in the\n" ++
+  "  ledger. If the record is not marked as reconciled, and the date falls\n" ++
+  "  within the range of the command being executed, the text is printed\n" ++
+  "  out. If the record is marked as reconciled, the text is not printed\n" ++
+  "  out; the record merely serves as a comment in the ledger. This is for\n" ++
+  "  leaving yourself reminders of stuff that needs to be done at some time:\n" ++
+  "  for example, my ledger file has entries\n" ++
   "\n" ++
   "        todo 2009/12/1 Start actively gathering tax info\n" ++
   "        todo 2010/4/10 Taxes better be done!!!\n" ++
   "\n" ++
   "  yet I won't be bothered by seeing these until those dates have\n" ++
   "  passed (or if I do a query for some time in the future).\n" ++
+  "\n" ++
+  "  Again, for details on the optional [period] prefix, see below.\n" ++
   "\n" ++
   "  In addition, there are two not-quite-financial bits of syntactic\n" ++
   "  sugar: there are two record types 'birthday' and 'anniversary', with\n" ++
@@ -315,6 +326,9 @@ usageMsg prog =
   "  the keyword used to enter them and the same keyword used to print\n" ++
   "  them. As in 'todo' records, the reconciliation mark serves to\n" ++
   "  suppress these.\n" ++
+  "\n" ++
+  "  It's illegal to have a [period] prefix with 'birthday' or 'anniversary'\n" ++
+  "  records.\n" ++
   "\n" ++
   "In the above:\n" ++
   "\n" ++
@@ -374,7 +388,14 @@ usageMsg prog =
   "\n" ++
   "* 'rec' is a reconciliation mark: a '*' or a '!'. It may immediately\n" ++
   "  follow the record type, or it may be separated from the record type\n" ++
-  "  by whitespace: ie, both 'todo*' and 'todo *' are legal.\n" ++
+  "  by whitespace: ie, both 'todo*' and 'todo *' are legal. For 'xfer',\n" ++
+  "  'exch', and 'todo' records, it indicates that the given transaction\n" ++
+  "  has been properly reconciled with a statement, and for 'account'\n" ++
+  "  records, it indicates that the account is inactive and should not\n" ++
+  "  be printed in balance inquiries (unless there is something in it).\n" ++
+  "\n" ++
+  "  There is no difference, as far as the program is concerned, between\n" ++
+  "  '*' and '!'.\n" ++
   "\n" ++
   "* 'id' (in an 'xfer' record) is a sequence of digits: a check number\n" ++
   "  or other identifying number.\n" ++

@@ -16,11 +16,12 @@ You should have received a copy of the GNU General Public License
 along with umm; if not, write to the Free Software Foundation, Inc.,
 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-$Id: UMMEval.hs,v 1.44 2010/05/10 04:06:46 uwe Exp $ -}
+$Id: UMMEval.hs,v 1.54 2010/08/08 18:23:11 uwe Exp $ -}
 
 module UMMEval (validateRecs, validateCCS, validateAccts, classifyRecs,
                 validateTransPrices, generateImplicitPrices, getBalances,
-                getPrices, expandRecurringTrans) where
+                plotBalances, getPrices, plotPrices, expandRecurringTrans)
+    where
 import Prelude hiding (putStr,putStrLn,print)
 import Data.List
 import Data.Maybe
@@ -28,6 +29,7 @@ import System.IO.UTF8
 import Control.Monad
 
 import UMMData
+import UMMPlot
 
 -- Internal error: complain loudly!
 
@@ -92,10 +94,11 @@ validateAccts dc ccs accts =
      unless (null e) (showErrs "problems with initial values in accounts" e)
      return i
   where chk _ [] = return ()
-        chk cn (r@(AccountRec _ _ _ Nothing):rs) = recordInfo r >> chk cn rs
-        chk cn (r@(AccountRec n da de (Just (CCSAmt nb ia))):rs)
+        chk cn (r@(AccountRec _ _ _ _ Nothing):rs) = recordInfo r >> chk cn rs
+        chk cn (r@(AccountRec n da rec de (Just (CCSAmt nb ia))):rs)
           | nb == noName    =
-            recordInfo (AccountRec n da de (Just (CCSAmt dc ia))) >> chk cn rs
+            recordInfo (AccountRec n da rec de (Just (CCSAmt dc ia)))
+              >> chk cn rs
           | elem nb cn      = recordInfo r >> chk cn rs
           | otherwise       = rE "unknown" nb >> recordErr r >> chk cn rs
         chk _ (r:_) = intErr "validateCCS" r
@@ -121,15 +124,15 @@ classifyRecs rs = cw rs [] [] [] [] [] [] [] []
               asD dc t, asD dc r, asD dc p)
         cw (rec:recs) c i e a g t p r =
           case rec of
-            CommentRec _       -> cw recs c i e a g t p r
-            CCSRec _ _ _ _     -> cw recs (rec:c) i e a g t p r
-            IncomeRec _ _      -> cw recs c (rec:i) e a g t p r
-            ExpenseRec _ _     -> cw recs c i (rec:e) a g t p r
-            AccountRec _ _ _ _ -> cw recs c i e (rec:a) g t p r
-            GroupRec _ _       -> cw recs c i e a (rec:g) t p r
-            PriceRec _ _ _ _   -> cw recs c i e a g t (rec:p) r
-            RecurRec _ _ _ _   -> cw recs c i e a g t p (rec:r)
-            _                  -> cw recs c i e a g (rec:t) p r
+            CommentRec _         -> cw recs c i e a g t p r
+            CCSRec _ _ _ _       -> cw recs (rec:c) i e a g t p r
+            IncomeRec _ _        -> cw recs c (rec:i) e a g t p r
+            ExpenseRec _ _       -> cw recs c i (rec:e) a g t p r
+            AccountRec _ _ _ _ _ -> cw recs c i e (rec:a) g t p r
+            GroupRec _ _         -> cw recs c i e a (rec:g) t p r
+            PriceRec _ _ _ _     -> cw recs c i e a g t (rec:p) r
+            RecurRec _ _ _ _     -> cw recs c i e a g t p (rec:r)
+            _                    -> cw recs c i e a g (rec:t) p r
         vsN = uChk . sortBy cmpRecName
         uChk vs = if uniqAdjBy (\v1 v2 -> cmpRecName v1 v2 == EQ) vs
                      then vs
@@ -231,21 +234,21 @@ scaleBy qs d = map (s1 (getCN d) (getCA d)) qs
               qq = getCA q
           in if qn == dn then CCSAmt qn (Amount (qq * dq)) else q
 
-maybeRecord :: Maybe Name -> Record -> AccountData -> (Name -> Bool) ->
+maybeRecord :: Maybe [Name] -> Record -> AccountData -> ([Name] -> Bool) ->
                Ledger e (Record, [CCSAmt]) ()
 maybeRecord reg record newaccs tst =
   let isJ = isJust reg
       rn = fromJust reg
-      acc = filter (\a -> fst a == rn) newaccs
-      nb = if null acc
-              then [CCSAmt noName (Amount 0)]
-              else snd (head acc)
+      acc = filter (\a -> elem (tr1 a) rn) newaccs
+      nb = if null acc then [CCSAmt noName (Amount 0)] else concatMap tr3 acc
   in if isJ && tst rn
         then recordInfo (record, nb)
         else recordNil
+  where tr1 (v,_,_) = v
+        tr3 (_,_,v) = v
 
-maybeDo :: Maybe Name -> Bool -> Record -> Bool ->
-           AccountData -> AccountData -> (Name -> Bool) ->
+maybeDo :: Maybe [Name] -> Bool -> Record -> Bool ->
+           AccountData -> AccountData -> ([Name] -> Bool) ->
            Ledger e (Record, [CCSAmt]) AccountData
 maybeDo reg dorec record isrec accs newaccs tst =
   if dorec
@@ -254,29 +257,30 @@ maybeDo reg dorec record isrec accs newaccs tst =
              else maybeRecord reg record newaccs tst >> return accs
      else maybeRecord reg record newaccs tst >> return newaccs
 
-exchTrans :: Maybe Name -> Bool -> Record -> AccountData ->
+exchTrans :: Maybe [Name] -> Bool -> Record -> AccountData ->
              Ledger e (Record, [CCSAmt]) AccountData
 exchTrans reg dorec record@(ExchRec _ _ isrec acc amtn amto _) accs =
   maybeDo reg dorec record isrec accs (doExch accs acc amtn amto)
-          (\rn -> rn == acc || rn == noName)
+          (\rn -> elem acc rn || rn == [noName])
   where doExch [] _ _ _ = []
-        doExch ((an,ab):as) n en eo =
+        doExch ((an,ah,ab):as) n en eo =
           if an == n
-             then (an, subFrom (addTo ab en) eo) : as
-             else (an,ab) : doExch as n en eo
+             then (an, ah, subFrom (addTo ab en) eo) : as
+             else (an, ah, ab) : doExch as n en eo
 exchTrans _ _ r _ = intErr "exchTrans" r
 
-xferTrans :: Maybe Name -> Bool -> Record -> AccountData ->
+xferTrans :: Maybe [Name] -> Bool -> Record -> AccountData ->
              Ledger e (Record, [CCSAmt]) AccountData
 xferTrans reg dorec record@(XferRec _ isrec from tos _ _) accs =
   foldM (xfer1 False) accs (init tos) >>= (\a -> xfer1 True a (last tos))
   where xfer1 rf as (to,amt) =
           maybeDo reg dorec record isrec as (doXfer as from to amt)
-                  (\rn -> (rf && (rn == from || rn == noName)) || rn == to)
+                  (\rn -> (rf && (elem from rn || rn == [noName])) ||
+                          elem to rn)
         doXfer [] _ _ _ = []
-        doXfer (a@(an,ab):as) nf nt e
-          | an == nf    = (an, subFrom ab e) : doXfer as nf nt e
-          | an == nt    = (an, addTo ab e) : doXfer as nf nt e
+        doXfer (a@(an,ah,ab):as) nf nt e
+          | an == nf    = (an, ah, subFrom ab e) : doXfer as nf nt e
+          | an == nt    = (an, ah, addTo ab e) : doXfer as nf nt e
           | otherwise   = a : doXfer as nf nt e
 xferTrans _ _ r _ = intErr "xferTrans" r
 
@@ -285,38 +289,52 @@ xferTrans _ _ r _ = intErr "xferTrans" r
 -- but is this a reconcilable transaction? It reaches across accounts,
 -- so maybe not
 
-splitTrans :: Maybe Name -> Record -> AccountData ->
+splitTrans :: Maybe [Name] -> Record -> AccountData ->
               Ledger e (Record, [CCSAmt]) AccountData
 splitTrans reg record@(SplitRec _ ccs (Amount an) (Amount ao)) acc =
   let newaccs = map doST acc
   in maybeRecord reg record newaccs (const True) >> return newaccs
-  where doST (a1,a2) = (a1, scaleBy a2 (CCSAmt ccs (Amount (an/ao))))
+  where doST (a1,a2,a3) = (a1, a2, scaleBy a3 (CCSAmt ccs (Amount (an/ao))))
 splitTrans _ r _ = intErr "splitTrans" r
+
+-- When we are plotting the value of an account over time, we want price
+-- changes to be reflected in the plot, even though there is no change in
+-- the number of shares. So this do-nothing transaction fires on price
+-- records
+
+voidTrans :: Maybe [Name] -> Record -> AccountData ->
+             Ledger e (Record, [CCSAmt]) AccountData
+voidTrans reg record@(PriceRec _ _ _ _) acc =
+  maybeRecord reg record acc (const True) >> return acc
+voidTrans _ r _ = intErr "voidTrans" r
 
 {-
 -- new version with printing of initial values
 mkInit reg as =
   let iaccs = (map (\a -> (getRecName a, maybeToList (gI a))) as)
   in maybeRecord reg (CommentRec "") iaccs (const True) >> return iaccs
-  where gI (AccountRec _ _ _ mi) = mi
+  where gI (AccountRec _ _ _ _ mi) = mi
         gI r = intErr "mkInit" r
 -}
 
 mkInit :: Monad m => [Record] -> m AccountData
-mkInit as = return (map (\a -> (getRecName a, maybeToList (gI a))) as)
-  where gI (AccountRec _ _ _ mi) = mi
+mkInit as = return (map (\a -> (getRecName a, gR a, maybeToList (gI a))) as)
+  where gI (AccountRec _ _ _ _ mi) = mi
         gI r = intErr "mkInit" r
+        gR (AccountRec _ _ r _ _) = r
+        gR r = intErr "mkInit" r
 
-appTr :: Date -> Maybe Name -> Bool -> [Record] -> AccountData ->
+appTr :: Date -> Maybe [Name] -> Bool -> [Record] -> AccountData ->
          Ledger Record (Record, [CCSAmt]) AccountData
 appTr _ _ _ [] as = return as
 appTr d r f (t:ts) as =
   if getRecDate t > d
      then return as
      else case t of
-            XferRec _ _ _ _ _ _ -> xferTrans r f t as >>= appTr d r f ts
+            XferRec _ _ _ _ _ _   -> xferTrans r f t as >>= appTr d r f ts
             ExchRec _ _ _ _ _ _ _ -> exchTrans r f t as >>= appTr d r f ts
-            SplitRec _ _ _ _  -> splitTrans r t as >>= appTr d r f ts
+            SplitRec _ _ _ _      -> splitTrans r t as  >>= appTr d r f ts
+            PriceRec _ _ _ _      -> voidTrans r t as   >>= appTr d r f ts
             NoteRec _ isrec SN_T _ ->
               (if isrec then recordNil else recordInfo (t,[]))
                 >> appTr d r f ts as
@@ -332,6 +350,8 @@ appTr d r f (t:ts) as =
               j3 = julianDate (Date (yn + 1) ma da)
           in abs (jn - j1) <= 7 || abs (jn - j2) <= 7 || abs (jn - j3) <= 7
 
+-- Show just a transaction, and show transaction & balance, respectively
+
 showT :: (Record, [CCSAmt]) -> IO ()
 showT (t,_) = print t
 
@@ -339,7 +359,11 @@ showTB :: (Record, [CCSAmt]) -> IO ()
 showTB e@(_,b) = showT e >> mapM_ sB b
   where sB ccsa = putStrLn ('\t' : show ccsa)
 
-getBalances :: Date -> Date -> Maybe Name -> Bool ->
+-- These two routines are for collecting account balances and presenting
+-- them in various ways. For now, keep them separate, although the first
+-- halves are pretty much the same... maybe merge them later
+
+getBalances :: Date -> Date -> Maybe [Name] -> Bool ->
                [Record] -> [Record] -> IO AccountData
 getBalances date1 date2 reg dorec accts trans =
   do let (r,i1,e) = runLedger (mkInit accts >>= appTr date2 reg dorec trans)
@@ -349,27 +373,54 @@ getBalances date1 date2 reg dorec accts trans =
      unless (null i) (putStrLn "Notes:" >> mapM_ ss i >> putStrLn "")
      return r
 
+plotBalances :: Date -> Date -> Name -> [Name] -> [Record] -> [Record] ->
+                String -> ((Record, [CCSAmt]) -> (Date, [Amount])) -> IO ()
+plotBalances date1 date2 name names accts trans output gs =
+  do let (_,i1,e) =
+           runLedger (mkInit accts >>= appTr date2 (Just names) False trans)
+         i = dropWhile (\t -> getRecDate (fst t) < date1) i1
+     unless (null e) (showErrs "processing errors" e)
+     if null i then putStrLn ("No balances known for " ++ show name)
+               else genPlot output name date1 date2 (map gs i)
+
 -- For now, we don't generate "swap prices" internally, so unless the user
 -- enters some, we won't see any; see also generateImplicitPrices above.
+
+getP :: Name -> Name -> [Record] -> Ledger Record Record ()
+getP _ _ [] = return ()
+getP nm dc (p@(PriceRec _ _ (CCSAmt nr1 _) (CCSAmt nr2 _)):ps)
+  | (nr1 == nm && nr2 == dc) || (nr1 == dc && nr2 == nm)
+                                 = recordInfo p >> getP nm dc ps
+  | nr1 == nm || nr2 == nm       = recordErr p >> getP nm dc ps
+  | otherwise                    = getP nm dc ps
+getP nm dc (_:ps) = getP nm dc ps
+
+-- These two routines are for collecting prices and presenting them in
+-- various ways. For now, keep them separate, although the first halves
+-- are pretty much the same... maybe merge them later
 
 getPrices :: Name -> Name -> Date -> Date -> [Record] -> IO ()
 getPrices nm dc date1 date2 prices =
   do let p1 = dropWhile (\t -> date2 < getRecDate t) prices
          p2 = takeWhile (\t -> date1 < getRecDate t) p1
-         (_,i,e) = runLedger (get p2)
+         (_,i,e) = runLedger (getP nm dc p2)
      unless (null e) (doShow "Swap \"Prices\"" e >> putStrLn "")
      unless (null i) (doShow "Ordinary Prices" i)
      when (null i && null e)
           (putStrLn ("No prices known for " ++ show nm))
-  where get [] = return ()
-        get (p@(PriceRec _ _ (CCSAmt nr1 _) (CCSAmt nr2 _)):ps) =
-          if (nr1 == nm && nr2 == dc) || (nr1 == dc && nr2 == nm)
-             then recordInfo p >> get ps
-             else if nr1 == nm || nr2 == nm
-                     then recordErr p >> get ps
-                     else get ps
-        get _ = recordNil
-        doShow t p = putStrLn t >> mapM_ print (reverse p)
+  where doShow t p = putStrLn t >> mapM_ print (reverse p)
+
+plotPrices :: Name -> Name -> Date -> Date -> [Record] -> String -> IO ()
+plotPrices nm dc date1 date2 prices output =
+  do let p1 = dropWhile (\t -> date2 < getRecDate t) prices
+         p2 = takeWhile (\t -> date1 < getRecDate t) p1
+         (_,i,e) = runLedger (getP nm dc p2)
+     unless (null e) (putStrLn "There were swap \"prices\" which are ignored")
+     if null i then putStrLn ("No prices known for " ++ show nm)
+               else genPlot output nm date1 date2 (map gp (reverse i))
+  where gp (PriceRec d _ (CCSAmt _ (Amount a1)) (CCSAmt _ (Amount a2))) =
+          (d, [Amount (a2/a1)])
+        gp r = intErr "plotPrices" r
 
 -- Convert a list of RecurRec records into equivalent list
 -- of individual transactions, sorted by date
@@ -402,4 +453,6 @@ expandRecurringTrans rs = sortBy cmpRecDate (concatMap eRT rs)
           XferRec dc (dc <= dr) f t m i
         mRD (ExchRec t _ _ a c1 c2 m) dr dc =
           ExchRec t dc (dc <= dr) a c1 c2 m
+        mRD (NoteRec _ _ SN_T m) dr dc =
+          NoteRec dc (dc <= dr) SN_T m
         mRD r _ _ = intErr "expandRecurringTrans" r

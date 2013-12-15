@@ -1,0 +1,47 @@
+todo 2009-1-1 Test 3b: this exercises "split" transactions.
+todo 2009-1-1 Run "umm test3b.dat bal 2009-1-d" for different values of d.
+todo 2009-1-1 You should see N dollars in the account on the Nth day
+todo 2009-1-1 of January 2009, from 1 up to 31.
+
+ccs J "junk"
+
+income in
+
+account count "again, count"
+
+# generate an initial amount in the accounts
+
+xfer 2009-1-1 in count 1 J
+
+# start splitting
+
+split 2009-1-2 J 2 1
+split 2009-1-3 J 3 2
+split 2009-1-4 J 4 3
+split 2009-1-5 J 5 4
+split 2009-1-6 J 6 5
+split 2009-1-7 J 7 6
+split 2009-1-8 J 8 7
+split 2009-1-9 J 9 8
+split 2009-1-10 J 10 9
+split 2009-1-11 J 11 10
+split 2009-1-12 J 12 11
+split 2009-1-13 J 13 12
+split 2009-1-14 J 14 13
+split 2009-1-15 J 15 14
+split 2009-1-16 J 16 15
+split 2009-1-17 J 17 16
+split 2009-1-18 J 18 17
+split 2009-1-19 J 19 18
+split 2009-1-20 J 20 19
+split 2009-1-21 J 21 20
+split 2009-1-22 J 22 21
+split 2009-1-23 J 23 22
+split 2009-1-24 J 24 23
+split 2009-1-25 J 25 24
+split 2009-1-26 J 26 25
+split 2009-1-27 J 27 26
+split 2009-1-28 J 28 27
+split 2009-1-29 J 29 28
+split 2009-1-30 J 30 29
+split 2009-1-31 J 31 30
