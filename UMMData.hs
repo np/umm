@@ -547,13 +547,26 @@ recordNil = Ledger ((), [], [])
 -- lists it might not be suitable. <shrug>
 
 instance Monad (Ledger e i) where
-  return a = Ledger (a, [], [])
+  return = pure
   (>>=) m k =
     let (a,li1,le1) = runLedger m
         n = k a
         (b,li2,le2) = runLedger n
     in Ledger (b, li1 ++ li2, le1 ++ le2)
   (>>) a f = a >>= const f
+
+instance Functor (Ledger e i) where
+  fmap f (Ledger (r, li, le)) = Ledger (f r, li, le)
+  x <$ Ledger (_, li, le) = Ledger (x, li, le)
+
+instance Applicative (Ledger e i) where
+  pure a = Ledger (a, [], [])
+  Ledger (a1, li1, le1) <*> Ledger (a2, li2, le2) =
+    Ledger (a1 a2, li1 ++ li2, le1 ++ le2)
+  Ledger (_, li1, le1) *> Ledger (a2, li2, le2) =
+    Ledger (a2, li1 ++ li2, le1 ++ le2)
+  Ledger (a1, li1, le1) <* Ledger (_, li2, le2) =
+    Ledger (a1, li1 ++ li2, le1 ++ le2)
 
 -- Some miscellany
 
