@@ -25,7 +25,7 @@ import Data.List
 import Data.Maybe
 import Data.Ord (comparing)
 import System.Exit
-import System.Environment.UTF8
+import System.Environment
 import System.Time
 
 import UMMHelp
