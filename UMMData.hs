@@ -19,7 +19,7 @@ along with umm; if not, write to the Free Software Foundation, Inc.,
 $Id: UMMData.hs,v 1.54 2010/05/09 06:24:44 uwe Exp $ -}
 
 module UMMData (Name(..), Date(..), Amount(..), startTime,
-                Command(..), CmdOpt(..), Record(..),
+                Command(..), CmdOpt(..), Record(..), Status(..),
                 ExportFormat(..), genDate,
                 getRecDate, cmpRecDate, getRecName, cmpRecName,
                 Ledger(..), runLedger, getResult, getInfo, getErrs,
@@ -208,19 +208,27 @@ instance Show Period where
                | mod n 12 == 0  = show (div n 12) ++ "years"
                | otherwise      = show n ++ " months"
 
+data Status = Star | Bang | None
+  deriving (Eq)
+
+instance Show Status where
+  show Star = "*"
+  show Bang = "!"
+  show None = ""
+
 data Record = CCSRec Name String (Maybe Amount) Name
             | IncomeRec Name String
             | ExpenseRec Name String
             | AccountRec Name Date String (Maybe CCSAmt)
             | GroupRec Name [Name]
             | PriceRec Date Bool CCSAmt CCSAmt
-            | XferRec Date Bool Name [(Name, CCSAmt, String)] String String
-            | ExchRec BSE Date Bool Name CCSAmt CCSAmt String
+            | XferRec Date Status Name [(Name, CCSAmt, String)] String String
+            | ExchRec BSE Date Status Name CCSAmt CCSAmt String
             | SplitRec Date Name Amount Amount
             | CommentRec String
             | ErrorRec String
             | RecurRec Period Date Date Record
-            | NoteRec Date Bool SN String
+            | NoteRec Date Status SN String
 
 instance Show Record where
   show = showR
@@ -249,9 +257,6 @@ quote = ('"':) . (++"\"") . concatMap quoteChar
 optStr :: String -> String
 optStr str = shIf (str /= "") (quote str)
 
-shRec :: Bool -> String
-shRec rec = shIf rec "*"
-
 joinDrop :: [String] -> String
 joinDrop = intercalate " " . filter (/= "")
 
@@ -267,11 +272,11 @@ showR (PriceRec d imp c1 c2) =
   joinDrop [shIf imp "[", "price", show d, show c1, show c2, shIf imp "]"]
 
 showR (XferRec d r from tos m i) =
-  joinDrop ["xfer", shRec r, show d, show from, showTos tos, optStr m, i]
+  joinDrop ["xfer", show r, show d, show from, showTos tos, optStr m, i]
 
 showR (ExchRec t d r a c1 c2 memo) =
   let hs = if t == BSE_S then [show c2, show c1] else [show c1, show c2]
-  in joinDrop ([show t, shRec r, show d, show a] ++ hs ++ [optStr memo])
+  in joinDrop ([show t, show r, show d, show a] ++ hs ++ [optStr memo])
 
 showR (SplitRec d n a1 a2) =
   joinDrop ["split", show d, show n, show a1, show a2]
@@ -279,10 +284,10 @@ showR (SplitRec d n a1 a2) =
 showR (CommentRec c) = shIf (c /= "") (joinDrop ["#", c])
 
 showR (NoteRec d r SN_T memo) =
-  joinDrop ["todo", shRec r, show d, shDef memo "something! but what?"]
+  joinDrop ["todo", show r, show d, shDef memo "something! but what?"]
 
 showR (NoteRec (Date _ m d) r t memo) =
-  joinDrop [show t, shRec r, show m ++ "/" ++ show d,
+  joinDrop [show t, show r, show m ++ "/" ++ show d,
             shDef memo "some important anniversary! but what?"]
 
 showR (ErrorRec str) = joinDrop ["#err", str]
@@ -302,13 +307,13 @@ showTo1 sp (n,a,memo) = joinDrop [show n, shIf sp " ", show a, optStr memo]
 
 showExp :: Record -> String
 showExp (XferRec d r from tos m i) =
-  let l1 = joinDrop [show d, shRec r, i, shDef m "transfer"]
+  let l1 = joinDrop [show d, show r, i, shDef m "transfer"]
       l2 = map (showTo1 True) tos
       l3 = joinDrop [show from]
   in intercalate "\n    " ([l1] ++ l2 ++ [l3])
 
 showExp (ExchRec _ d r a c1 (CCSAmt n2 (Amount a2)) m) =
-  let l1 = joinDrop [show d, shRec r, shDef m "exchange"]
+  let l1 = joinDrop [show d, show r, shDef m "exchange"]
       l2 = joinDrop [show a, ' ' : show c1]
       l3 = joinDrop [show a, ' ' : show (CCSAmt n2 (Amount (-a2)))]
       l4 = "the:world"
@@ -378,7 +383,7 @@ jsonRecord (XferRec d r from tos m i) =
   jsonObject . catMaybes $
     ["kind"    +:!  jsonString "xfer"
     ,"date"    +:!  jsonDate d
-    ,"rec"     +:!  jsonBool r
+    ,"rec"     +:!  jsonString (show r)
     ,"from"    +:!  jsonName from
     ,"to"      +:!  jsonArray (map jsonNameAmtDesc tos)
     ,"desc"    +:?  jsonOptString m
@@ -391,7 +396,7 @@ jsonRecord (ExchRec bse d r a c1 c2 m) =
   jsonObject . catMaybes $
     ["kind"     +:!  jsonArray [jsonString "exch", jsonBSE bse]
     ,"date"     +:!  jsonDate d
-    ,"rec"      +:!  jsonBool r
+    ,"rec"      +:!  jsonString (show r)
     ,"account"  +:!  jsonName a
     ,"amounts"  +:!  jsonArray [jsonAmt c1, jsonAmt c2]
     ,"desc"     +:?  jsonOptString m
@@ -413,7 +418,7 @@ jsonRecord (NoteRec d r kind m) =
   jsonObject . catMaybes $
     ["kind"  +:! jsonSN kind
     ,"date"  +:! jsonDate d
-    ,"rec"   +:! jsonBool r
+    ,"rec"   +:! jsonString (show r)
     ,"desc"  +:? jsonOptString m
     ]
 

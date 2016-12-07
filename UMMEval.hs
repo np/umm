@@ -261,7 +261,7 @@ maybeDo reg dorec record isrec accs newaccs tst =
 exchTrans :: Maybe Name -> Bool -> Record -> AccountData ->
              Ledger e (Record, [CCSAmt]) AccountData
 exchTrans reg dorec record@(ExchRec _ _ isrec acc amtn amto _) accs =
-  maybeDo reg dorec record isrec accs (doExch accs acc amtn amto)
+  maybeDo reg dorec record (isrec /= None) accs (doExch accs acc amtn amto)
           (\rn -> rn == acc || rn == noName)
   where doExch [] _ _ _ = []
         doExch ((an,ab):as) n en eo =
@@ -275,7 +275,7 @@ xferTrans :: Maybe Name -> Bool -> Record -> AccountData ->
 xferTrans reg dorec record@(XferRec _ isrec from tos _ _) accs =
   foldM (xfer1 False) accs (init tos) >>= (\a -> xfer1 True a (last tos))
   where xfer1 rf as (to,amt,_) =
-          maybeDo reg dorec record isrec as (doXfer as from to amt)
+          maybeDo reg dorec record (isrec /= None) as (doXfer as from to amt)
                   (\rn -> (rf && (rn == from || rn == noName)) || rn == to)
         doXfer [] _ _ _ = []
         doXfer (a@(an,ab):as) nf nt e
@@ -322,10 +322,10 @@ appTr d r f (t:ts) as =
             ExchRec _ _ _ _ _ _ _ -> exchTrans r f t as >>= appTr d r f ts
             SplitRec _ _ _ _  -> splitTrans r t as >>= appTr d r f ts
             NoteRec _ isrec SN_T _ ->
-              (if isrec then recordNil else recordInfo (t,[]))
+              (if isrec /= None then recordNil else recordInfo (t,[]))
                 >> appTr d r f ts as
             NoteRec da isrec _ _ ->
-              (if isrec || not (ca d da)
+              (if isrec /= None || not (ca d da)
                   then recordNil
                   else recordInfo (t,[])) >> appTr d r f ts as
             _ -> recordErr t >> appTr d r f ts as
@@ -403,7 +403,9 @@ expandRecurringTrans rs = sortBy cmpRecDate (concatMap eRT rs)
           let (dy,m1) = divMod (mstep + m - 1) 12
           in Date (y + dy) (m1 + 1) d
         mRD (XferRec _ _ f t m i) dr dc =
-          XferRec dc (dc <= dr) f t m i
+          XferRec dc (mergeRec dc dr) f t m i
         mRD (ExchRec t _ _ a c1 c2 m) dr dc =
-          ExchRec t dc (dc <= dr) a c1 c2 m
+          ExchRec t dc (mergeRec dc dr) a c1 c2 m
         mRD r _ _ = intErr "expandRecurringTrans" r
+        mergeRec dc dr | dc <= dr  = Star
+                       | otherwise = None
