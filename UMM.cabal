@@ -1,8 +1,8 @@
 Name:             UMM
 Version:          0.2.1
-Homepage:         http://www.korgwal.com/umm/
+Homepage:         https://github.com/np/umm
 Author:           Uwe Hollerbach <uh@alumni.caltech.edu>
-Maintainer:       Uwe Hollerbach <uh@alumni.caltech.edu>
+Maintainer:       Nicolas Pouillard <np.umm@nicolaspouillard.fr>
 Synopsis:         A small command-line accounting tool
 Description:      This is a very minimal command-line program to read a
                   plain-text ledger file and display balance information
