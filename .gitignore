@@ -1,2 +1,4 @@
-dist
 *.swp
+dist/
+.stack-work/
+result/
