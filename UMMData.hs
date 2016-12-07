@@ -33,7 +33,6 @@ module UMMData (Name(..), Date(..), Amount(..), startTime,
 import Prelude
 import Numeric (showHex)
 import Data.Char
-import Data.Functor
 import Data.List
 import Data.Maybe
 import Data.Ord

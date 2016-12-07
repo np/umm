@@ -25,7 +25,6 @@ module UMMParser (parseURecord, parseUDate, parseUCommand) where
 import Prelude
 import Data.Char
 import Data.Ratio
-import Data.Functor
 import Text.ParserCombinators.Parsec as TPCP hiding (spaces)
 
 import UMMData
