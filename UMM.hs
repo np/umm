@@ -282,6 +282,7 @@ main =
        ExportCmd -> mapM_ pse trans >> mapM_ pse (reverse prices)
        ListDataCmd w ->
          doList w dc ccs accts grps incs exps
+      -- Prices
        PriceCmd name date1 date2 ->
          if elem name (map getRecName cb)
             then putStrLn (show name ++ " is a base CCS!")
