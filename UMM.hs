@@ -23,6 +23,7 @@ import Prelude hiding (putStr,putStrLn,print,readFile,getContents)
 import Control.Monad
 import Data.List
 import Data.Maybe
+import Data.Ord (comparing)
 import System.Exit
 import System.IO.UTF8
 import System.Environment.UTF8
@@ -110,9 +111,10 @@ equivPrice (CCSAmt n (Amount a)) bc date p1s =
 
 -- Translate price if possible
 
-reprice :: CCSAmt -> Name -> [Record] -> Date -> [Record] -> CCSAmt
+reprice :: CCSAmt -> Name -> [Record] -> Date -> [Record] -> (Bool, CCSAmt)
 reprice c@(CCSAmt cn _) bc ccs date prices =
-  maybe c fst (equivPrice c (getBaseCurrency cn bc ccs) date prices)
+  maybe (False, c) ((,) True . fst)
+        (equivPrice c (getBaseCurrency cn bc ccs) date prices)
 
 -- Pretty-print accounts
 
@@ -181,15 +183,32 @@ doList w dc ccs accts grps incs exps =
 
 doGrandTotal :: Date -> Name -> [Record] -> AccountData -> [Record] -> IO ()
 doGrandTotal date dc ccs fsel prices =
-  putStrLn ("Grand total: ~" ++ show sp)
+    putStrLn "Grand total:" >>
+    mapM_ (putStrLn . ppCCSTotal) sp
   where
-    sp = filter (\e -> ccsA e /= 0) (map sumCCS gp)
-    gp = groupBy eqCCSAmtName (sortBy cmpCCSAmtName fp)
+    sp = filter0 . map (addSum . both sumCCS . partitionOnFst) $ grpCCSAmts fp
     fp = map (\e -> reprice e dc ccs date prices) (concatMap snd fsel)
     sumCCS cs =
        CCSAmt (ccsN (head cs)) (Amount (roundP 2 (sum (map ccsA cs))))
+    grpCCSAmts = groupAndSortWith (ccsN . snd)
+    filter0 = filter ((/=0) . ccsA . snd)
+    addSum (x, y) = ((x, y), CCSAmt (ccsN x) (Amount (ccsA x + ccsA y)))
+
+    ppCCSTotal1 x = concat ["  ", show (ccsN x), ": ", show x]
+
+    ppCCSTotal ((x, y), z)
+      | ccsA x == 0 = ppCCSTotal1 y
+      | ccsA y == 0 = ppCCSTotal1 x
+      | otherwise
+          = concat ["  ", show (ccsN x), ": ~", show z,
+                    " (", show y, " + ~", show x, ")"]
+
     ccsA (CCSAmt _ (Amount a)) = a
     ccsN (CCSAmt n _) = n
+    groupAndSortWith f = groupBy (equating f) . sortBy (comparing f)
+    partitionOnFst = both (map snd) . partition fst
+    equating f x y = f x == f y
+    both f (x, y) = (f x, f y)
 
 doBalance :: Bool -> Date -> [Name] -> Name -> [Record] ->
              [Record] -> [Record] -> [Record] -> IO ()
