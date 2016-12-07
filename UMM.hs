@@ -278,7 +278,8 @@ main =
        BasisCmd name date ->
          doBalance False date [noName] dc ccs accts
                    (filter (hasCur name) trans) []
-       ExportCmd -> mapM_ pse trans >> mapM_ pse (reverse prices)
+       ExportCmd LedgerFmt -> mapM_ pse trans >> mapM_ pse (reverse prices)
+       ExportCmd JSONFmt -> putStrLn (jsonRecords recs "")
        ListDataCmd w ->
          doList w dc ccs accts grps incs exps
        PriceCmd name date1 date2 ->

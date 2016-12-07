@@ -19,17 +19,21 @@ along with umm; if not, write to the Free Software Foundation, Inc.,
 $Id: UMMData.hs,v 1.54 2010/05/09 06:24:44 uwe Exp $ -}
 
 module UMMData (Name(..), Date(..), Amount(..), startTime,
-                Command(..), CmdOpt(..), Record(..), genDate,
+                Command(..), CmdOpt(..), Record(..),
+                ExportFormat(..), genDate,
                 getRecDate, cmpRecDate, getRecName, cmpRecName,
                 Ledger(..), runLedger, getResult, getInfo, getErrs,
                 recordInfo, recordErr, recordNil, showExp, BSE(..),
                 SN(..), Period(..), CCSAmt(..), cmpCCSAmtName,
+                jsonRecord, jsonRecords,
                 eqCCSAmtName, AccountData, noName, todoName, joinDrop,
                 roundP, isLeap, validDate, julianDate, gregorianDate,
                 offsetDate, previousDate, nextDate,
                 trimspace, mylines, mergelines, uniqAdjBy, uniqAdj) where
 import Prelude
+import Numeric (showHex)
 import Data.Char
+import Data.Functor
 import Data.List
 import Data.Maybe
 import Data.Ord
@@ -145,7 +149,11 @@ data Command = ListDataCmd CmdOpt
              | ReconcileCmd Name Date
              | PriceCmd Name Date Date
              | ChangeCmd Bool Name Date Date
-             | ExportCmd
+             | ExportCmd ExportFormat
+
+data ExportFormat = LedgerFmt
+                  | JSONFmt
+  deriving (Eq)
 
 instance Show Command where
   show (ListDataCmd opt) = joinDrop ["list", show opt]
@@ -160,7 +168,8 @@ instance Show Command where
   show (ChangeCmd verbose name date1 date2) =
     joinDrop ["change", shIf verbose "verbose",
               show name, show date1, show date2]
-  show ExportCmd = "export"
+  show (ExportCmd LedgerFmt) = "export ledger"
+  show (ExportCmd JSONFmt) = "export json"
 
 -- No, not bovine spongiform encephalitis! Disambiguate buy, sell, and
 -- exch records: internally, they are all treated as exch, because
@@ -313,6 +322,156 @@ showExp (PriceRec d _ (CCSAmt n1 (Amount a1)) (CCSAmt n2 (Amount a2))) =
 showExp (SplitRec _ _ _ _)    = "# Split to be implemented"
 showExp r@(NoteRec _ _ _ _)   = "# " ++ showR r
 showExp r = error ("internal error at showExp! got " ++ show r)
+
+jsonBool :: Bool -> ShowS
+jsonBool b = if b then ("true"++) else ("false"++)
+
+padLeft :: Int -> a -> [a] -> [a]
+padLeft n x xs = replicate (n - length xs) x ++ xs
+
+-- A character inside a JSON string
+jsonChar :: Char -> ShowS
+jsonChar c
+  | c `elem` "\"\\"        = (['\\',c]++)
+  | isAscii c && isPrint c = (c:)
+  | otherwise              = (('\\':'u':padLeft 8 '0' (showHex (ord c) ""))++)
+
+jsonString :: String -> ShowS
+jsonString s = ('"':) . (catShowS . map jsonChar $ s) . ('"':)
+jsonDate :: Date -> ShowS
+jsonDate = jsonString . show
+jsonArray :: [ShowS] -> ShowS
+jsonArray xs = ('[':) . catShowS (intersperse (',':) xs) . (']':)
+jsonObject :: [(String, ShowS)] -> ShowS
+jsonObject xs = ('{':) . catShowS (intersperse (',':) (map g xs)) . ('}':)
+  where g (x,f) = shows x . (':':) . f
+catShowS :: [ShowS] -> ShowS
+catShowS = foldr (.) id
+jsonAmt :: CCSAmt -> ShowS
+jsonAmt = jsonString . show
+jsonAmount :: Amount -> ShowS
+jsonAmount = jsonString . show
+jsonName :: Name -> ShowS
+jsonName (Name s) = jsonString s
+jsonBSE :: BSE -> ShowS
+jsonBSE = jsonString . show
+jsonSN :: SN -> ShowS
+jsonSN = jsonString . show
+jsonPeriod :: Period -> ShowS
+jsonPeriod = jsonString . show
+jsonOptString :: String -> Maybe ShowS
+jsonOptString x | null x    = Nothing
+                | otherwise = Just (jsonString x)
+nl :: ShowS
+nl = ('\n':)
+infix 3 +:+
+infix 3 +:!
+infix 3 +:?
+(+:+) :: a -> b -> (a, b)
+(+:+) = (,)
+(+:!) :: a -> b -> Maybe (a, b)
+(+:!) x y = Just (x, y)
+(+:?) :: a -> Maybe b -> Maybe (a, b)
+(+:?) x = fmap f where f y = (x, y)
+
+jsonRecord :: Record -> ShowS
+jsonRecord (XferRec d r from tos m i) =
+  jsonObject . catMaybes $
+    ["kind"    +:!  jsonString "xfer"
+    ,"date"    +:!  jsonDate d
+    ,"rec"     +:!  jsonBool r
+    ,"from"    +:!  jsonName from
+    ,"to"      +:!  jsonArray (map jsonNameAmtDesc tos)
+    ,"desc"    +:?  jsonOptString m
+    ,"id"      +:?  jsonOptString i
+    ]
+  where jsonNameAmtDesc (n,a,"") = jsonObject [("name",jsonName n),("amount",jsonAmt a)]
+        jsonNameAmtDesc (n,a,m') = jsonObject [("name",jsonName n),("amount",jsonAmt a),("desc",jsonString m')]
+
+jsonRecord (ExchRec bse d r a c1 c2 m) =
+  jsonObject . catMaybes $
+    ["kind"     +:!  jsonArray [jsonString "exch", jsonBSE bse]
+    ,"date"     +:!  jsonDate d
+    ,"rec"      +:!  jsonBool r
+    ,"account"  +:!  jsonName a
+    ,"amounts"  +:!  jsonArray [jsonAmt c1, jsonAmt c2]
+    ,"desc"     +:?  jsonOptString m
+    ]
+
+jsonRecord (PriceRec d imp x1 x2) =
+  jsonObject [("kind",      jsonString "price")
+             ,("date",      jsonDate d)
+             ,("implicit",  jsonBool imp) -- TODO: maybe we should hide it
+             ,("amounts",   jsonArray [jsonAmt x1, jsonAmt x2])]
+
+jsonRecord (SplitRec d n a1 a2) =
+  jsonObject [("kind",     jsonString "split")
+             ,("date",     jsonDate d)
+             ,("name",     jsonName n)
+             ,("amounts",  jsonArray [jsonAmount a1, jsonAmount a2])]
+
+jsonRecord (NoteRec d r kind m) =
+  jsonObject . catMaybes $
+    ["kind"  +:! jsonSN kind
+    ,"date"  +:! jsonDate d
+    ,"rec"   +:! jsonBool r
+    ,"desc"  +:? jsonOptString m
+    ]
+
+jsonRecord (CCSRec n desc mamt basis) =
+  jsonObject . catMaybes $
+    ["kind"    +:!  jsonString "ccs"
+    ,"name"    +:!  jsonName n
+    ,"desc"    +:?  jsonOptString desc
+    ,"amount"  +:?  jsonAmount <$> mamt
+    ,"basis"   +:!  jsonName basis]
+
+jsonRecord (IncomeRec n desc) =
+  jsonObject . catMaybes $
+    ["kind" +:! jsonString "income"
+    ,"name" +:! jsonName n
+    ,"desc" +:? jsonOptString desc]
+
+jsonRecord (ExpenseRec n desc) =
+  jsonObject . catMaybes $
+    ["kind" +:! jsonString "expense"
+    ,"name" +:! jsonName n
+    ,"desc" +:? jsonOptString desc]
+
+jsonRecord (AccountRec n d desc mamt) =
+  jsonObject . catMaybes $
+    ["kind"    +:!  jsonString "amount"
+    ,"name"    +:!  jsonName n
+    ,"date"    +:!  jsonDate d
+    ,"desc"    +:?  jsonOptString desc
+    ,"amount"  +:?  jsonAmt <$> mamt]
+
+jsonRecord (GroupRec n ns) =
+  jsonObject $
+    ["kind"     +:+  jsonString "group"
+    ,"name"     +:+  jsonName n
+    ,"members"  +:+  jsonArray (map jsonName ns)]
+
+jsonRecord (CommentRec desc) =
+  jsonObject . catMaybes $
+    ["kind"  +:!  jsonString "comment"
+    ,"desc"  +:?  jsonOptString desc]
+
+jsonRecord (ErrorRec desc) =
+  jsonObject . catMaybes $
+    ["kind"  +:!  jsonString "error"
+    ,"desc"  +:?  jsonOptString desc]
+
+jsonRecord (RecurRec period untilDate recDate r) =
+  jsonObject . catMaybes $
+    ["kind"      +:!  jsonString "recurring"
+    ,"period"    +:!  jsonPeriod period
+    ,"until"     +:!  jsonDate untilDate
+    ,"rec-date"  +:?  jsonDate <$> (if startTime == recDate then Nothing else Just recDate)
+    ,"record"    +:!  jsonRecord r]
+
+jsonRecords :: [Record] -> ShowS
+jsonRecords = jsonArray . map ((. nl) . jsonRecord)
 
 -- Get the date (or at any rate /some/ date) from a Record
 
