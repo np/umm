@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {- Copyright 2009-2010 Uwe Hollerbach <uh@alumni.caltech.edu>
 
 This file is part of umm, Uwe's Money Manager.
