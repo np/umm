@@ -22,7 +22,7 @@ module UMMData (Name(..), Date(..), Amount(..), startTime,
                 Command(..), CmdOpt(..), Record(..),
                 ExportFormat(..), genDate,
                 getRecDate, cmpRecDate, getRecName, cmpRecName,
-                Ledger(..), runLedger, getResult, getInfo, getErrs,
+                Ledger(..), runLedger,
                 recordInfo, recordErr, recordNil, showExp, BSE(..),
                 SN(..), Period(..), CCSAmt(..), cmpCCSAmtName,
                 jsonRecord, jsonRecords,
@@ -504,41 +504,35 @@ cmpRecDate = comparing getRecDate
 -- by name
 cmpRecName = comparing getRecName
 
+type Endom a = a -> a
+type DList a = Endom [a]
+
 -- Ledger monad: essentially a parametrized bi-level version of the Logger
 -- monad from RWH. The first component of the tuple is "the final result",
 -- whatever that may be, the second component is a list of ordinary bits
 -- of information, and the third component is a list of extraordinary bits
 -- of information, aka errors.
 
-newtype Ledger e i r = Ledger (r, [i], [e]) deriving (Show)
+data Ledger e i r = Ledger r (DList i) (DList e)
 
 runLedger :: Ledger e i r -> (r,[i],[e])
-runLedger (Ledger a) = a
-
-getResult :: Ledger e i r -> r
-getResult (Ledger (r,_,_)) = r
-
-getInfo :: Ledger e i r -> [i]
-getInfo   (Ledger (_,i,_)) = i
-
-getErrs :: Ledger e i r -> [e]
-getErrs   (Ledger (_,_,e)) = e
+runLedger (Ledger r i e) = (r, i [], e [])
 
 -- Record a message
 
 recordInfo :: i -> Ledger e i ()
-recordInfo i = Ledger ((), [i], [])
+recordInfo i = Ledger () (i:) id
 
 -- Record an error
 
 recordErr :: e -> Ledger e i ()
-recordErr e = Ledger ((), [], [e])
+recordErr e = Ledger () id (e:)
 
 -- Record nothing: a placeholder for conditionals:
 -- if someCond then recordErr "someErr" else recordNil
 
 recordNil :: Ledger e i ()
-recordNil = Ledger ((), [], [])
+recordNil = Ledger () id id
 
 -- Note that because we use append (++) for lists here, this is fairly
 -- low-performance: it's entirely ok for this application, where we
@@ -547,25 +541,23 @@ recordNil = Ledger ((), [], [])
 
 instance Monad (Ledger e i) where
   return = pure
-  (>>=) m k =
-    let (a,li1,le1) = runLedger m
-        n = k a
-        (b,li2,le2) = runLedger n
-    in Ledger (b, li1 ++ li2, le1 ++ le2)
+  Ledger a li1 le1 >>= k =
+    let (Ledger b li2 le2) = k a
+    in Ledger b (li1 . li2) (le1 . le2)
   (>>) a f = a >>= const f
 
 instance Functor (Ledger e i) where
-  fmap f (Ledger (r, li, le)) = Ledger (f r, li, le)
-  x <$ Ledger (_, li, le) = Ledger (x, li, le)
+  fmap f (Ledger r li le) = Ledger (f r) li le
+  x <$ Ledger _ li le = Ledger x li le
 
 instance Applicative (Ledger e i) where
-  pure a = Ledger (a, [], [])
-  Ledger (a1, li1, le1) <*> Ledger (a2, li2, le2) =
-    Ledger (a1 a2, li1 ++ li2, le1 ++ le2)
-  Ledger (_, li1, le1) *> Ledger (a2, li2, le2) =
-    Ledger (a2, li1 ++ li2, le1 ++ le2)
-  Ledger (a1, li1, le1) <* Ledger (_, li2, le2) =
-    Ledger (a1, li1 ++ li2, le1 ++ le2)
+  pure a = Ledger a id id
+  Ledger a1 li1 le1 <*> Ledger a2 li2 le2 =
+    Ledger (a1 a2) (li1 . li2) (le1 . le2)
+  Ledger _ li1 le1 *> Ledger a2 li2 le2 =
+    Ledger a2 (li1 . li2) (le1 . le2)
+  Ledger a1 li1 le1 <* Ledger _ li2 le2 =
+    Ledger a1 (li1 . li2) (le1 . le2)
 
 -- Some miscellany
 
