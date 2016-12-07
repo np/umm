@@ -82,7 +82,7 @@ genDate (CalendarTime {ctYear = y, ctMonth = m, ctDay = d}) =
   in Date y m2 d
 
 startTime :: Date
-startTime = Date (-4003) 10 23		-- 9 AM (GMT)
+startTime = Date (-4003) 10 23   -- 9 AM (GMT)
 
 newtype Amount = Amount Rational deriving (Eq, Ord)
 instance Show Amount where
@@ -193,8 +193,8 @@ instance Show SN where
 data Period = PSW | PSM | PND Int | PNM Int deriving (Eq)
 
 instance Show Period where
-  show PSW = "semiweekly"		-- twice per week: N, N + 3, N + 7, ...
-  show PSM = "semimonthly"		-- twice per month: N, N +- 15 days
+  show PSW = "semiweekly"           -- twice per week: N, N + 3, N + 7, ...
+  show PSM = "semimonthly"          -- twice per month: N, N +- 15 days
   show (PND n) | n == 1         = "daily"
                | n == 7         = "weekly"
                | n == 14        = "biweekly"
@@ -484,7 +484,7 @@ getRecDate (SplitRec d _ _ _) =      d
 getRecDate (NoteRec d _ SN_T _) =    d
 getRecDate (NoteRec d _ _ _) =       offsetDate d (-7)
 getRecDate (RecurRec _ _ _ r) =      getRecDate r
-getRecDate _ = startTime	-- so it works for every Record
+getRecDate _ = startTime    -- so it works for every Record
 
 -- Get the name (or at any rate /some/ name) from a Record
 
@@ -494,7 +494,7 @@ getRecName (IncomeRec n _) =      n
 getRecName (ExpenseRec n _) =     n
 getRecName (AccountRec n _ _ _) = n
 getRecName (GroupRec n _) =       n
-getRecName _ = nilName		-- so it works for every Record
+getRecName _ = nilName        -- so it works for every Record
 
 -- Compare two Records
 cmpRecDate, cmpRecName :: Record -> Record -> Ordering

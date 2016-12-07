@@ -92,52 +92,52 @@ parseOptionalString = option "" (TPCP.try parseString)
 -- gathered from various places on the web, mainly unicode.org
 
 currencySymbol =
-  oneOf ['\x24',	-- dollar
-         '\xa2',	-- cent
-         '\xa3',	-- pound
-         '\xa4',	-- generic currency symbol
-         '\xa5',	-- yen
-         '\x192',	-- florin
-         '\x9f2',	-- Bengali rupee 1
-         '\x9f3',	-- Bengali rupee 2
-         '\xaf1',	-- gujarati rupee
-         '\xbf9',	-- Tamil rupee
-         '\xe2f',	-- Thai baht
-         '\x17db',	-- Khmer currency symbol
-         '\x20a0',	-- euro-currency (not euro)
-         '\x20a1',	-- colon
-         '\x20a2',	-- Brazilian cruzeiro
-         '\x20a3',	-- French franc
-         '\x20a4',	-- Italian lira
-         '\x20a5',	-- mill
-         '\x20a6',	-- Nigerian naira
-         '\x20a7',	-- Spanish peseta
-         '\x20a8',	-- Indian rupee
-         '\x20a9',	-- Korean won
-         '\x20aa',	-- Israeli new sheqel
-         '\x20ab',	-- Vietnamese dong
-         '\x20ac',	-- European euro
-         '\x20ad',	-- Laotian kip
-         '\x20ae',	-- Mongolian tugrik
-         '\x20af',	-- Greek drachma
-         '\x20b0',	-- German pfennig
-         '\x20b1',	-- Phillipine peso
-         '\x20b2',	-- Paraguayan guarani ???
-         '\x20b3',	-- austral ???
-         '\x20b4',	-- Ukrainian hryvnia ???
-         '\x20b5',	-- Ghanaian cedi ???
-         '\x20b6',	-- livre tournois ???
-         '\x20b7',	-- spesmilo ???
-         '\x20b8',	-- tenge ???
-         '\x3350',	-- yuan 1
-         '\x5143',	-- Chinese yuan
-         '\x5186',	-- yen 2
-         '\x5706',	-- yen/yuan variant
-         '\x570e',	-- yen/yuan variant
-         '\x5713',	-- yuan variant
-         '\x571c',	-- yuan variant
-         '\xa838',	-- North Indic rupee ???
-         '\xfdfc']	-- Iranian rial
+  oneOf ['\x24',    -- dollar
+         '\xa2',    -- cent
+         '\xa3',    -- pound
+         '\xa4',    -- generic currency symbol
+         '\xa5',    -- yen
+         '\x192',   -- florin
+         '\x9f2',   -- Bengali rupee 1
+         '\x9f3',   -- Bengali rupee 2
+         '\xaf1',   -- gujarati rupee
+         '\xbf9',   -- Tamil rupee
+         '\xe2f',   -- Thai baht
+         '\x17db',  -- Khmer currency symbol
+         '\x20a0',  -- euro-currency (not euro)
+         '\x20a1',  -- colon
+         '\x20a2',  -- Brazilian cruzeiro
+         '\x20a3',  -- French franc
+         '\x20a4',  -- Italian lira
+         '\x20a5',  -- mill
+         '\x20a6',  -- Nigerian naira
+         '\x20a7',  -- Spanish peseta
+         '\x20a8',  -- Indian rupee
+         '\x20a9',  -- Korean won
+         '\x20aa',  -- Israeli new sheqel
+         '\x20ab',  -- Vietnamese dong
+         '\x20ac',  -- European euro
+         '\x20ad',  -- Laotian kip
+         '\x20ae',  -- Mongolian tugrik
+         '\x20af',  -- Greek drachma
+         '\x20b0',  -- German pfennig
+         '\x20b1',  -- Phillipine peso
+         '\x20b2',  -- Paraguayan guarani ???
+         '\x20b3',  -- austral ???
+         '\x20b4',  -- Ukrainian hryvnia ???
+         '\x20b5',  -- Ghanaian cedi ???
+         '\x20b6',  -- livre tournois ???
+         '\x20b7',  -- spesmilo ???
+         '\x20b8',  -- tenge ???
+         '\x3350',  -- yuan 1
+         '\x5143',  -- Chinese yuan
+         '\x5186',  -- yen 2
+         '\x5706',  -- yen/yuan variant
+         '\x570e',  -- yen/yuan variant
+         '\x5713',  -- yuan variant
+         '\x571c',  -- yuan variant
+         '\xa838',  -- North Indic rupee ???
+         '\xfdfc']  -- Iranian rial
 
 -- Non-currency symbols: don't allow these as the first character of a name
 
@@ -417,8 +417,8 @@ parseComment =
 parseRecur =
   do string "recurring"
      period <- parsePeriod
-     spaces			-- TODO: keep this syntactic sugar?
-     string "until"		-- it kinda reads better...?
+     spaces                -- TODO: keep this syntactic sugar?
+     string "until"        -- it kinda reads better...?
      dl <- parseDate
      spaces
      dr <- option startTime
@@ -442,7 +442,7 @@ parseRecord =
            <|> parseGroup
            <|> parseRecur
            <|> parseComment
-           <|> parseBlank	-- this must be last, as it can match nothing
+           <|> parseBlank    -- this must be last, as it can match nothing
      many space >> eof >> return record
 
 parseURecord :: String -> Record
