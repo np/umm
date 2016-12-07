@@ -21,10 +21,9 @@ $Id: UMMEval.hs,v 1.44 2010/05/10 04:06:46 uwe Exp $ -}
 module UMMEval (validateRecs, validateCCS, validateAccts, classifyRecs,
                 validateTransPrices, generateImplicitPrices, getBalances,
                 getPrices, expandRecurringTrans) where
-import Prelude hiding (putStr,putStrLn,print)
+import Prelude
 import Data.List
 import Data.Maybe
-import System.IO.UTF8
 import Control.Monad
 
 import UMMData
