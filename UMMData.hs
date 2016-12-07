@@ -215,7 +215,7 @@ data Record = CCSRec Name String (Maybe Amount) Name
             | AccountRec Name Date String (Maybe CCSAmt)
             | GroupRec Name [Name]
             | PriceRec Date Bool CCSAmt CCSAmt
-            | XferRec Date Bool Name [(Name, CCSAmt)] String String
+            | XferRec Date Bool Name [(Name, CCSAmt, String)] String String
             | ExchRec BSE Date Bool Name CCSAmt CCSAmt String
             | SplitRec Date Name Amount Amount
             | CommentRec String
@@ -293,13 +293,13 @@ showR (RecurRec p dl dr r) =
             if dr == startTime then "" else "reconciled " ++ show dr,
             "\\\n    \\", show r]
 
-showTos :: [(Name, CCSAmt)] -> String
+showTos :: [(Name, CCSAmt, String)] -> String
 showTos [] = "{}"
 showTos (t:[]) = showTo1 False t
 showTos ts = "{" ++ intercalate ", " (map (showTo1 False) ts) ++ "}"
 
-showTo1 :: Bool -> (Name, CCSAmt) -> String
-showTo1 sp (n,a) = joinDrop [show n, shIf sp " ", show a]
+showTo1 :: Bool -> (Name, CCSAmt, String) -> String
+showTo1 sp (n,a,memo) = joinDrop [show n, shIf sp " ", show a, optStr memo]
 
 showExp :: Record -> String
 showExp (XferRec d r from tos m i) =

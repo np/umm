@@ -24,6 +24,7 @@ module UMMParser (parseURecord, parseUDate, parseUCommand) where
 import Prelude
 import Data.Char
 import Data.Ratio
+import Data.Functor
 import Text.ParserCombinators.Parsec as TPCP hiding (spaces)
 
 import UMMData
@@ -192,19 +193,24 @@ parseCCSAmt =
      ccs <- parseOptionalName
      return (CCSAmt ccs amt)
 
-parseOneTo, parseManyTo :: Parser [(Name, CCSAmt)]
+parseOneTo :: Parser (Name, CCSAmt)
+parseManyTo :: Parser [(Name, CCSAmt, String)]
 
 parseOneTo =
   do to <- parseName
      ca <- parseCCSAmt
-     return [(to, ca)]
+     return (to, ca)
 
 parseManyTo =
   do spaces
      char '{'
-     tos <- sepBy1 (parseOneTo >>= (\t -> many space >> return t)) (char ',')
+     tos <- sepBy1 parseOneToOptComment (char ',')
      char '}'
-     return (concat tos)
+     return tos
+  where parseOneToOptComment = do (t,c) <- parseOneTo
+                                  memo <- parseOptionalString
+                                  many space
+                                  return (t, c, memo)
 
 -- A date: three groups of digits separated by '/' or '-' (but not mixed)
 -- where the first group of digits is the year, the second the month, and
@@ -353,7 +359,7 @@ parseXfer =
      rec <- parseReconcile
      date <- parseDate
      from <- parseName
-     to <- TPCP.try parseOneTo <|> parseManyTo
+     to <- TPCP.try ((\(t,c) -> [(t,c,"")]) <$> parseOneTo) <|> parseManyTo
      memo <- parseOptionalString
      ident <- option "" (TPCP.try parseXferID)
      return (XferRec date rec from to memo ident)

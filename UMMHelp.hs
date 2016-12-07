@@ -115,8 +115,8 @@ usageMsg prog =
   "    'split' date name amount1 amount2\n" ++
   "    'todo' [rec] date text\n" ++
   "    [period] 'xfer' [rec] date name1 name2 amount [name] [desc] [id]\n" ++
-  "    [period] 'xfer' [rec] date name1 {name2 amount [name],\\\n" ++
-  "        \\ name3 amount [name], ...} [desc] [id]\n" ++
+  "    [period] 'xfer' [rec] date name1 {name2 amount [name] [desc],\\\n" ++
+  "        \\ name3 amount [name] [desc], ...} [desc] [id]\n" ++
   "    [period] 'exch' [rec] date name amount1 name1 amount2 [name2] [desc]\n" ++
   "\n" ++
   "There are also 'buy' and 'sell' records which are just syntactic sugar\n" ++

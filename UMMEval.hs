@@ -143,7 +143,7 @@ classifyRecs rs = cw rs [] [] [] [] [] [] [] []
           ExchRec t d f acc (addDCCA dc ccsa1) (addDCCA dc ccsa2) m
         addDC dc (RecurRec p dl dr r) = RecurRec p dl dr (addDC dc r)
         addDC _ r = r
-        addDCCAt d (n,a) = (n, addDCCA d a)
+        addDCCAt d (n,a,memo) = (n, addDCCA d a, memo)
         isB (CCSRec _ _ ma nb) = isNothing ma && nb == noName
         isB r = intErr "classifyCCS" r
 
@@ -170,7 +170,7 @@ validateTransPrices ccs incs exps accts tps =
         chk (NoteRec _ _ _ _) = False
         chk (RecurRec _ _ _ r) = chk r
         chk _ = True
-        chkTo (to, CCSAmt n _) =
+        chkTo (to, CCSAmt n _, _) =
           (notIn to exps && notIn to accts) || notIn n ccs
         notIn _ [] = True
         notIn s (r:rs) = s /= getRecName r && notIn s rs
@@ -269,7 +269,7 @@ xferTrans :: Maybe Name -> Bool -> Record -> AccountData ->
              Ledger e (Record, [CCSAmt]) AccountData
 xferTrans reg dorec record@(XferRec _ isrec from tos _ _) accs =
   foldM (xfer1 False) accs (init tos) >>= (\a -> xfer1 True a (last tos))
-  where xfer1 rf as (to,amt) =
+  where xfer1 rf as (to,amt,_) =
           maybeDo reg dorec record isrec as (doXfer as from to amt)
                   (\rn -> (rf && (rn == from || rn == noName)) || rn == to)
         doXfer [] _ _ _ = []

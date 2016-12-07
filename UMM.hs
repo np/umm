@@ -249,7 +249,7 @@ doChange verbose d1 d2 name dc ccs accts trans =
 
 hasCur :: Name -> Record -> Bool
 hasCur c (XferRec _ _ _ tos _ _) = any hC tos
-  where hC (_, CCSAmt n _) = c == n
+  where hC (_, CCSAmt n _, _) = c == n
 hasCur c (ExchRec _ _ _ _ (CCSAmt n1 _) (CCSAmt n2 _) _) = c == n1 || c == n2
 hasCur c (SplitRec _ n1 _ _) = c == n1
 hasCur _ (NoteRec _ _ _ _) = False
