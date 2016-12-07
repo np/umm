@@ -106,7 +106,7 @@ equivPrice (CCSAmt n (Amount a)) bc date p1s =
           if date >= dr && n == nr1 && nr2 == bc
              then Just ((CCSAmt bc (Amount (a*ar2/ar1))), dr)
              else xlat ps
-        xlat (_:ps) = xlat ps		-- for non-PriceRec records
+        xlat (_:ps) = xlat ps        -- for non-PriceRec records
 
 -- Translate price if possible
 
