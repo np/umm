@@ -24,6 +24,7 @@ $Id: UMMParser.hs,v 1.47 2010/05/09 06:24:44 uwe Exp $ -}
 module UMMParser (parseURecord, parseUDate, parseUCommand) where
 import Prelude
 import Data.Char
+import Data.Functor
 import Data.Ratio
 import Text.ParserCombinators.Parsec as TPCP hiding (spaces)
 
@@ -277,9 +278,9 @@ parseDateRange now =
   TPCP.try (parseDR3 now) <|>
   parseDR4 now
 
-parseReconcile :: Parser Bool
+parseReconcile :: Parser Status
 parseReconcile =
-  option False (TPCP.try (many space >> oneOf "*!" >> return True))
+  option None (TPCP.try (many space >> (char '*' $> Star <|> char '!' $> Bang)))
 
 parsePeriod :: Parser Period
 parsePeriod =
