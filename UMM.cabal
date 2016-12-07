@@ -16,7 +16,7 @@ Build-Type:       Simple
 Category:         Finance
 
 Executable        umm
-  Build-Depends:  base >= 4 && < 5, parsec, old-time, utf8-string
+  Build-Depends:  base >= 4 && < 5, parsec, old-time
   Main-is:        UMM.hs
   GHC-Options:    -Wall -fno-warn-unused-do-bind
   Other-Modules:  UMMData
